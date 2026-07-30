@@ -1,4 +1,5 @@
-import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { ipcMain } from 'electron'
+import { isTrustedIpcSender } from '../security/trusted-renderer'
 import {
   RUN_SOLUTION_CHANNEL,
   type ExecutionTestCase,
@@ -12,8 +13,6 @@ const MAX_PROBLEM_ID_LENGTH = 120
 const MAX_SOURCE_CODE_LENGTH = 100_000
 const MAX_TEST_CASE_COUNT = 100
 const MAX_TEST_VALUE_DEPTH = 20
-
-const trustedWebContentsIds = new Set<number>()
 
 function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => {
@@ -95,29 +94,11 @@ function isRunSolutionRequest(value: unknown): value is RunSolutionRequest {
   return true
 }
 
-function isTrustedSender(event: IpcMainInvokeEvent): boolean {
-  return (
-    trustedWebContentsIds.has(event.sender.id) &&
-    event.senderFrame !== null &&
-    event.senderFrame === event.sender.mainFrame
-  )
-}
-
-export function trustExecutionWindow(window: BrowserWindow): void {
-  const webContentsId = window.webContents.id
-
-  trustedWebContentsIds.add(webContentsId)
-
-  window.once('closed', () => {
-    trustedWebContentsIds.delete(webContentsId)
-  })
-}
-
 export function registerExecutionHandler(): void {
   ipcMain.handle(
     RUN_SOLUTION_CHANNEL,
     async (event, request: unknown): Promise<RunSolutionResponse> => {
-      if (!isTrustedSender(event)) {
+      if (!isTrustedIpcSender(event)) {
         return {
           ok: false,
           error: {
