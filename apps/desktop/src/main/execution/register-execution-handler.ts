@@ -72,7 +72,7 @@ function isExecutionTestCase(value: unknown): value is ExecutionTestCase {
   return (
     isNonEmptyString(value.id, MAX_PROBLEM_ID_LENGTH) &&
     Array.isArray(value.args) &&
-    value.args.every((argument) => isTestValue(argument)) &&
+    isTestValue(value.args) &&
     isTestValue(value.expected)
   )
 }
