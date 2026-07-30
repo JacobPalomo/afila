@@ -1,8 +1,9 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
+type AfilaAPI = Record<string, never>
 
 declare global {
   interface Window {
-    electron: ElectronAPI
-    api: unknown
+    api: AfilaAPI
   }
 }
+
+export {}
