@@ -1,27 +1,11 @@
-import type { TestValue } from '../problems/types'
+import type { TestCaseExecutionResult } from '../../../../shared/execution'
 
-interface TestCaseExecutionResultBase {
-  readonly testCaseId: string
-  readonly durationMs: number
-}
-
-export interface PassedTestCaseExecutionResult extends TestCaseExecutionResultBase {
-  readonly status: 'passed'
-  readonly actual: TestValue
-}
-
-export interface FailedTestCaseExecutionResult extends TestCaseExecutionResultBase {
-  readonly status: 'failed'
-  readonly actual: TestValue
-}
-
-export interface ErroredTestCaseExecutionResult extends TestCaseExecutionResultBase {
-  readonly status: 'error'
-  readonly message: string
-}
-
-export type TestCaseExecutionResult =
-  PassedTestCaseExecutionResult | FailedTestCaseExecutionResult | ErroredTestCaseExecutionResult
+export type {
+  ErroredTestCaseExecutionResult,
+  FailedTestCaseExecutionResult,
+  PassedTestCaseExecutionResult,
+  TestCaseExecutionResult
+} from '../../../../shared/execution'
 
 export type SolutionExecutionState =
   | {

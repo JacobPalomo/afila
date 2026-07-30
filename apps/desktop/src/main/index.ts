@@ -2,8 +2,18 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { registerExecutionHandler } from './execution/register-execution-handler'
+import { trustRendererWindow } from './security/trusted-renderer'
+import { pathToFileURL } from 'url'
 
 function createWindow(): void {
+  const developmentRendererURL = process.env['ELECTRON_RENDERER_URL']
+
+  const trustedRendererURL =
+    is.dev && developmentRendererURL
+      ? developmentRendererURL
+      : pathToFileURL(join(__dirname, '../renderer/index.html')).toString()
+
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
@@ -21,6 +31,8 @@ function createWindow(): void {
     }
   })
 
+  trustRendererWindow(mainWindow, trustedRendererURL)
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })
@@ -32,8 +44,8 @@ function createWindow(): void {
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  if (is.dev && developmentRendererURL) {
+    mainWindow.loadURL(developmentRendererURL)
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
@@ -43,6 +55,8 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  registerExecutionHandler()
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.jacobpalomo.afila')
 
