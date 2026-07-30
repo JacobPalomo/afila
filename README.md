@@ -23,7 +23,32 @@ docs/       Architecture and technical decisions
 
 ## Development
 
-This repository uses pnpm workspaces. Development commands will be added as the desktop application and internal packages are created.
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+Start the desktop application:
+
+```bash
+pnpm dev
+```
+
+## Validation
+
+```bash
+pnpm verify:electron
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+## Local macOS package
+
+```bash
+pnpm build:unpack
+```
 
 ## License
 
