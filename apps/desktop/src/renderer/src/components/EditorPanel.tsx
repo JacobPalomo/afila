@@ -1,10 +1,17 @@
-function EditorPanel(): React.JSX.Element {
+interface EditorPanelProps {
+  fileName: string
+  starterCode: string
+}
+
+function EditorPanel({ fileName, starterCode }: EditorPanelProps): React.JSX.Element {
+  const lineCount = starterCode.split('\n').length
+
   return (
     <section className="editor-panel" aria-labelledby="editor-title">
       <header className="panel-toolbar">
         <div className="file-label">
           <span className="file-status" aria-hidden="true" />
-          <h2 id="editor-title">solution.ts</h2>
+          <h2 id="editor-title">{fileName}</h2>
         </div>
 
         <button type="button" disabled>
@@ -15,16 +22,13 @@ function EditorPanel(): React.JSX.Element {
 
       <div className="editor-placeholder" aria-label="Vista previa del editor">
         <div className="line-numbers" aria-hidden="true">
-          <span>1</span>
-          <span>2</span>
-          <span>3</span>
-          <span>4</span>
+          {Array.from({ length: lineCount }, (_, index) => (
+            <span key={index + 1}>{index + 1}</span>
+          ))}
         </div>
 
         <pre>
-          <code>{`function sumar(a: number, b: number): number {
-  return a + b
-}`}</code>
+          <code>{starterCode}</code>
         </pre>
       </div>
     </section>

@@ -3,6 +3,7 @@ import EditorPanel from './components/EditorPanel'
 import ProblemPanel from './components/ProblemPanel'
 import ResultsPanel from './components/ResultsPanel'
 import StatusBar from './components/StatusBar'
+import { sumTwoNumbersProblem } from './features/problems/data/sum-two-numbers'
 
 function App(): React.JSX.Element {
   return (
@@ -10,10 +11,13 @@ function App(): React.JSX.Element {
       <AppHeader />
 
       <div className="app-workspace">
-        <ProblemPanel />
+        <ProblemPanel problem={sumTwoNumbersProblem} />
 
         <main className="solution-workspace">
-          <EditorPanel />
+          <EditorPanel
+            fileName={sumTwoNumbersProblem.fileName}
+            starterCode={sumTwoNumbersProblem.starterCode}
+          />
           <ResultsPanel />
         </main>
       </div>
