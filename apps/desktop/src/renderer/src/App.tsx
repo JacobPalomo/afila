@@ -1,9 +1,25 @@
+import AppHeader from './components/AppHeader'
+import EditorPanel from './components/EditorPanel'
+import ProblemPanel from './components/ProblemPanel'
+import ResultsPanel from './components/ResultsPanel'
+import StatusBar from './components/StatusBar'
+
 function App(): React.JSX.Element {
   return (
-    <main>
-      <h1>.afila</h1>
-      <p>Práctica diaria de programación</p>
-    </main>
+    <div className="app-shell">
+      <AppHeader />
+
+      <div className="app-workspace">
+        <ProblemPanel />
+
+        <main className="solution-workspace">
+          <EditorPanel />
+          <ResultsPanel />
+        </main>
+      </div>
+
+      <StatusBar />
+    </div>
   )
 }
 
