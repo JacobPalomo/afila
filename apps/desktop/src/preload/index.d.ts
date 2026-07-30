@@ -1,4 +1,4 @@
-type AfilaAPI = Record<string, never>
+import type { AfilaAPI } from '../shared/api'
 
 declare global {
   interface Window {
