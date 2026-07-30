@@ -287,10 +287,26 @@ p {
   user-select: none;
 }
 
-.editor-placeholder pre {
+.solution-editor {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
   margin: 0;
+  padding: 0 18px 0 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 0;
+  outline: none;
   color: #d9dae0;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
   white-space: pre;
+  tab-size: 2;
+  caret-color: var(--accent);
+  resize: none;
 }
 
 .results-empty {

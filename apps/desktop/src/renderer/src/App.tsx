@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import AppHeader from './components/AppHeader'
 import EditorPanel from './components/EditorPanel'
 import ProblemPanel from './components/ProblemPanel'
@@ -8,6 +9,10 @@ import { getProblemById } from './features/problems/catalog'
 const activeProblem = getProblemById('sum-two-numbers')
 
 function App(): React.JSX.Element {
+  const [solutionCode, setSolutionCode] = useState(() => activeProblem.starterCode)
+
+  const isSolutionModified = solutionCode !== activeProblem.starterCode
+
   return (
     <div className="app-shell">
       <AppHeader />
@@ -16,12 +21,17 @@ function App(): React.JSX.Element {
         <ProblemPanel problem={activeProblem} />
 
         <main className="solution-workspace">
-          <EditorPanel fileName={activeProblem.fileName} starterCode={activeProblem.starterCode} />
+          <EditorPanel
+            fileName={activeProblem.fileName}
+            code={solutionCode}
+            onCodeChange={setSolutionCode}
+          />
+
           <ResultsPanel />
         </main>
       </div>
 
-      <StatusBar />
+      <StatusBar isSolutionModified={isSolutionModified} />
     </div>
   )
 }
