@@ -13,7 +13,7 @@
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "build": "pnpm run typecheck && electron-vite build",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "pnpm rebuild electron && electron-builder install-app-deps",
     "build:unpack": "pnpm run build && electron-builder --dir -c.mac.identity=- -c.mac.hardenedRuntime=false",
     "build:win": "pnpm run build && electron-builder --win",
     "build:mac": "pnpm run build && electron-builder --mac",
