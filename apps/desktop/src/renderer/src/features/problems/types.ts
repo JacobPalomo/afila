@@ -1,13 +1,11 @@
+import type { ExecutionTestCase } from '../../../../shared/execution'
+
+export type { TestValue } from '../../../../shared/execution'
+
 export type ProblemDifficulty = 'easy' | 'medium' | 'hard'
 
-export type TestValue =
-  string | number | boolean | null | readonly TestValue[] | { readonly [key: string]: TestValue }
-
-export interface ProblemTestCase {
-  readonly id: string
+export interface ProblemTestCase extends ExecutionTestCase {
   readonly label: string
-  readonly args: readonly TestValue[]
-  readonly expected: TestValue
 }
 
 export interface Problem {
