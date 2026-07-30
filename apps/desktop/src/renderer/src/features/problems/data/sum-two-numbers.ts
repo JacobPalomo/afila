@@ -14,4 +14,4 @@ export const sumTwoNumbersProblem = {
   starterCode: `function sumar(a: number, b: number): number {
   return a + b
 }`
-} satisfies Problem
+} as const satisfies Problem
