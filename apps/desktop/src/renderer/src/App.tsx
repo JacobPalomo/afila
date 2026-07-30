@@ -3,6 +3,9 @@ import EditorPanel from './components/EditorPanel'
 import ProblemPanel from './components/ProblemPanel'
 import ResultsPanel from './components/ResultsPanel'
 import StatusBar from './components/StatusBar'
+import { getProblemById } from './features/problems/catalog'
+
+const activeProblem = getProblemById('sum-two-numbers')
 
 function App(): React.JSX.Element {
   return (
@@ -10,10 +13,10 @@ function App(): React.JSX.Element {
       <AppHeader />
 
       <div className="app-workspace">
-        <ProblemPanel />
+        <ProblemPanel problem={activeProblem} />
 
         <main className="solution-workspace">
-          <EditorPanel />
+          <EditorPanel fileName={activeProblem.fileName} starterCode={activeProblem.starterCode} />
           <ResultsPanel />
         </main>
       </div>
