@@ -1,8 +1,17 @@
 interface StatusBarProps {
   isSolutionModified: boolean
+  hasPersistenceError: boolean
 }
 
-function StatusBar({ isSolutionModified }: StatusBarProps): React.JSX.Element {
+function StatusBar({ isSolutionModified, hasPersistenceError }: StatusBarProps): React.JSX.Element {
+  let solutionStatus = 'Código inicial'
+
+  if (hasPersistenceError) {
+    solutionStatus = 'No se pudo guardar'
+  } else if (isSolutionModified) {
+    solutionStatus = 'Guardado localmente'
+  }
+
   return (
     <footer className="app-statusbar">
       <span className="ready-status">
@@ -12,7 +21,7 @@ function StatusBar({ isSolutionModified }: StatusBarProps): React.JSX.Element {
 
       <div>
         <span>TypeScript</span>
-        <span>{isSolutionModified ? 'Cambios sin guardar' : 'Código inicial'}</span>
+        <span>{solutionStatus}</span>
       </div>
     </footer>
   )
