@@ -20,8 +20,14 @@ function wait(durationMs: number): Promise<void> {
   })
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+
+  const prototype = Object.getPrototypeOf(value)
+
+  return prototype === Object.prototype || prototype === null
 }
 
 function isNonEmptyString(value: unknown, maximumLength: number): value is string {
@@ -42,10 +48,16 @@ function isTestValue(value: unknown, depth = 0): value is TestValue {
   }
 
   if (Array.isArray(value)) {
-    return value.every((item) => isTestValue(item, depth + 1))
+    for (let index = 0; index < value.length; index += 1) {
+      if (!(index in value) || !isTestValue(value[index], depth + 1)) {
+        return false
+      }
+    }
+
+    return true
   }
 
-  if (!isRecord(value)) {
+  if (!isPlainRecord(value)) {
     return false
   }
 
@@ -53,7 +65,7 @@ function isTestValue(value: unknown, depth = 0): value is TestValue {
 }
 
 function isExecutionTestCase(value: unknown): value is ExecutionTestCase {
-  if (!isRecord(value)) {
+  if (!isPlainRecord(value)) {
     return false
   }
 
@@ -66,7 +78,7 @@ function isExecutionTestCase(value: unknown): value is ExecutionTestCase {
 }
 
 function isRunSolutionRequest(value: unknown): value is RunSolutionRequest {
-  if (!isRecord(value)) {
+  if (!isPlainRecord(value)) {
     return false
   }
 
