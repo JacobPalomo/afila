@@ -5,8 +5,13 @@ import ResultsPanel from './components/ResultsPanel'
 import StatusBar from './components/StatusBar'
 import { getProblemById } from './features/problems/catalog'
 import { useSolutionDraft } from './features/solutions/use-solution-draft'
+import type { SolutionExecutionState } from './features/execution/types'
 
 const activeProblem = getProblemById('sum-two-numbers')
+
+const initialExecutionState = {
+  status: 'idle'
+} satisfies SolutionExecutionState
 
 function App(): React.JSX.Element {
   const { code, isModified, hasPersistenceError, updateCode } = useSolutionDraft(activeProblem)
@@ -21,7 +26,10 @@ function App(): React.JSX.Element {
         <main className="solution-workspace">
           <EditorPanel fileName={activeProblem.fileName} code={code} onCodeChange={updateCode} />
 
-          <ResultsPanel />
+          <ResultsPanel
+            testCases={activeProblem.testCases}
+            executionState={initialExecutionState}
+          />
         </main>
       </div>
 
