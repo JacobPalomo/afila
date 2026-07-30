@@ -13,5 +13,31 @@ export const sumTwoNumbersProblem = {
   fileName: 'solution.ts',
   starterCode: `function sumar(a: number, b: number): number {
   return a + b
-}`
+}`,
+  testCases: [
+    {
+      id: 'positive-numbers',
+      label: 'Números positivos',
+      args: [2, 3],
+      expected: 5
+    },
+    {
+      id: 'mixed-signs',
+      label: 'Signos diferentes',
+      args: [-4, 7],
+      expected: 3
+    },
+    {
+      id: 'zeros',
+      label: 'Valores en cero',
+      args: [0, 0],
+      expected: 0
+    },
+    {
+      id: 'negative-numbers',
+      label: 'Números negativos',
+      args: [-5, -8],
+      expected: -13
+    }
+  ]
 } as const satisfies Problem
