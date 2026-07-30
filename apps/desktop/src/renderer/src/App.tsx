@@ -11,10 +11,9 @@ import {
   problemCatalog,
   type ProblemId
 } from './features/problems/catalog'
+import { getDailyProblemId } from './features/problems/daily-problem'
 import type { Problem } from './features/problems/types'
 import { useSolutionDraft } from './features/solutions/use-solution-draft'
-
-const DEFAULT_PROBLEM_ID: ProblemId = 'sum-two-numbers'
 
 interface ProblemWorkspaceProps {
   readonly problem: Problem
@@ -122,7 +121,9 @@ function ProblemWorkspace({ problem }: ProblemWorkspaceProps): React.JSX.Element
 }
 
 function App(): React.JSX.Element {
-  const [activeProblemId, setActiveProblemId] = useState<ProblemId>(DEFAULT_PROBLEM_ID)
+  const [dailyProblemId] = useState<ProblemId>(() => getDailyProblemId(new Date()))
+
+  const [activeProblemId, setActiveProblemId] = useState<ProblemId>(dailyProblemId)
 
   const activeProblem = getProblemById(activeProblemId)
 
@@ -139,6 +140,7 @@ function App(): React.JSX.Element {
       <AppHeader
         problems={problemCatalog}
         activeProblemId={activeProblemId}
+        dailyProblemId={dailyProblemId}
         onProblemChange={handleProblemChange}
       />
 
