@@ -5,13 +5,26 @@ import ProblemPanel from './components/ProblemPanel'
 import ResultsPanel from './components/ResultsPanel'
 import StatusBar from './components/StatusBar'
 import type { SolutionExecutionState, TestCaseExecutionResult } from './features/execution/types'
-import { getProblemById } from './features/problems/catalog'
+import {
+  getProblemById,
+  isProblemId,
+  problemCatalog,
+  type ProblemId
+} from './features/problems/catalog'
+import type { Problem } from './features/problems/types'
 import { useSolutionDraft } from './features/solutions/use-solution-draft'
 
-const activeProblem = getProblemById('sum-two-numbers')
+const DEFAULT_PROBLEM_ID: ProblemId = 'sum-two-numbers'
 
-function createExecutionErrorResults(message: string): readonly TestCaseExecutionResult[] {
-  return activeProblem.testCases.map((testCase) => ({
+interface ProblemWorkspaceProps {
+  readonly problem: Problem
+}
+
+function createExecutionErrorResults(
+  problem: Problem,
+  message: string
+): readonly TestCaseExecutionResult[] {
+  return problem.testCases.map((testCase) => ({
     status: 'error',
     testCaseId: testCase.id,
     durationMs: 0,
@@ -19,8 +32,8 @@ function createExecutionErrorResults(message: string): readonly TestCaseExecutio
   }))
 }
 
-function App(): React.JSX.Element {
-  const { code, isModified, hasPersistenceError, updateCode } = useSolutionDraft(activeProblem)
+function ProblemWorkspace({ problem }: ProblemWorkspaceProps): React.JSX.Element {
+  const { code, isModified, hasPersistenceError, updateCode } = useSolutionDraft(problem)
 
   const [executionState, setExecutionState] = useState<SolutionExecutionState>({
     status: 'idle'
@@ -40,9 +53,9 @@ function App(): React.JSX.Element {
 
     void window.api.execution
       .run({
-        problemId: activeProblem.id,
+        problemId: problem.id,
         sourceCode: code,
-        testCases: activeProblem.testCases.map(({ id, args, expected }) => ({
+        testCases: problem.testCases.map(({ id, args, expected }) => ({
           id,
           args,
           expected
@@ -54,7 +67,7 @@ function App(): React.JSX.Element {
             setExecutionState({
               status: 'error',
               message: response.error.message,
-              results: createExecutionErrorResults(response.error.message)
+              results: createExecutionErrorResults(problem, response.error.message)
             })
 
             return
@@ -71,7 +84,7 @@ function App(): React.JSX.Element {
           setExecutionState({
             status: 'error',
             message,
-            results: createExecutionErrorResults(message)
+            results: createExecutionErrorResults(problem, message)
           })
         }
       )
@@ -86,26 +99,50 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <div className="app-shell">
-      <AppHeader />
-
+    <>
       <div className="app-workspace">
-        <ProblemPanel problem={activeProblem} />
+        <ProblemPanel problem={problem} />
 
         <main className="solution-workspace">
           <EditorPanel
-            fileName={activeProblem.fileName}
+            fileName={problem.fileName}
             code={code}
             isRunning={isExecutionRunning}
             onCodeChange={handleCodeChange}
             onRun={runSolution}
           />
 
-          <ResultsPanel testCases={activeProblem.testCases} executionState={executionState} />
+          <ResultsPanel testCases={problem.testCases} executionState={executionState} />
         </main>
       </div>
 
       <StatusBar isSolutionModified={isModified} hasPersistenceError={hasPersistenceError} />
+    </>
+  )
+}
+
+function App(): React.JSX.Element {
+  const [activeProblemId, setActiveProblemId] = useState<ProblemId>(DEFAULT_PROBLEM_ID)
+
+  const activeProblem = getProblemById(activeProblemId)
+
+  const handleProblemChange = (nextProblemId: string): void => {
+    if (!isProblemId(nextProblemId)) {
+      return
+    }
+
+    setActiveProblemId(nextProblemId)
+  }
+
+  return (
+    <div className="app-shell">
+      <AppHeader
+        problems={problemCatalog}
+        activeProblemId={activeProblemId}
+        onProblemChange={handleProblemChange}
+      />
+
+      <ProblemWorkspace key={activeProblem.id} problem={activeProblem} />
     </div>
   )
 }
