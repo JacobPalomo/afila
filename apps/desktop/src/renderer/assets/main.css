@@ -94,6 +94,36 @@ p {
   font-size: 12px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 14px;
+}
+
+.problem-selector {
+  width: min(230px, 32vw);
+  min-width: 150px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface-raised);
+  font-size: 12px;
+  color-scheme: dark;
+  outline: none;
+}
+
+.problem-selector:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.problem-selector:focus-visible {
+  border-color: rgba(199, 243, 107, 0.55);
+  box-shadow: 0 0 0 3px rgba(199, 243, 107, 0.1);
+}
+
 .streak {
   display: flex;
   align-items: baseline;
