@@ -1,3 +1,5 @@
+import { indentCodeSelection } from '../features/editor/indentation'
+
 interface EditorPanelProps {
   fileName: string
   code: string
@@ -52,15 +54,33 @@ function EditorPanel({
           onKeyDown={(event) => {
             const isExecutionShortcut = event.key === 'Enter' && (event.metaKey || event.ctrlKey)
 
-            if (!isExecutionShortcut) {
+            if (isExecutionShortcut) {
+              event.preventDefault()
+
+              if (!isRunning) {
+                onRun()
+              }
+
+              return
+            }
+
+            const isIndentationShortcut = event.key === 'Tab' && !event.shiftKey && !isRunning
+
+            if (!isIndentationShortcut) {
               return
             }
 
             event.preventDefault()
 
-            if (!isRunning) {
-              onRun()
-            }
+            const textarea = event.currentTarget
+
+            const edit = indentCodeSelection(code, textarea.selectionStart, textarea.selectionEnd)
+
+            onCodeChange(edit.code)
+
+            window.requestAnimationFrame(() => {
+              textarea.setSelectionRange(edit.selectionStart, edit.selectionEnd)
+            })
           }}
         />
       </div>
