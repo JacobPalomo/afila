@@ -1,10 +1,18 @@
 interface EditorPanelProps {
   fileName: string
   code: string
+  isRunning: boolean
   onCodeChange: (code: string) => void
+  onRun: () => void
 }
 
-function EditorPanel({ fileName, code, onCodeChange }: EditorPanelProps): React.JSX.Element {
+function EditorPanel({
+  fileName,
+  code,
+  isRunning,
+  onCodeChange,
+  onRun
+}: EditorPanelProps): React.JSX.Element {
   const lineCount = Math.max(1, code.split('\n').length)
 
   return (
@@ -15,8 +23,8 @@ function EditorPanel({ fileName, code, onCodeChange }: EditorPanelProps): React.
           <h2 id="editor-title">{fileName}</h2>
         </div>
 
-        <button type="button" disabled>
-          Ejecutar
+        <button type="button" disabled={isRunning} onClick={onRun}>
+          {isRunning ? 'Ejecutando' : 'Ejecutar'}
           <kbd>⌘↵</kbd>
         </button>
       </header>
@@ -33,12 +41,26 @@ function EditorPanel({ fileName, code, onCodeChange }: EditorPanelProps): React.
           value={code}
           rows={lineCount}
           wrap="off"
+          readOnly={isRunning}
           aria-label={`Editor de ${fileName}`}
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
           onChange={(event) => {
             onCodeChange(event.currentTarget.value)
+          }}
+          onKeyDown={(event) => {
+            const isExecutionShortcut = event.key === 'Enter' && (event.metaKey || event.ctrlKey)
+
+            if (!isExecutionShortcut) {
+              return
+            }
+
+            event.preventDefault()
+
+            if (!isRunning) {
+              onRun()
+            }
           }}
         />
       </div>
