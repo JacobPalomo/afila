@@ -16,6 +16,7 @@ export interface Problem {
   readonly examples: readonly string[]
   readonly constraints: readonly string[]
   readonly fileName: string
+  readonly entryPoint: string
   readonly starterCode: string
   readonly testCases: readonly ProblemTestCase[]
 }
