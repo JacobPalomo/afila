@@ -2,14 +2,7 @@ import { ipcMain } from 'electron'
 import { isTrustedIpcSender } from '../security/trusted-renderer'
 import { RUN_SOLUTION_CHANNEL, type RunSolutionResponse } from '../../shared/execution'
 import { isRunSolutionRequest } from './validate-run-solution-request'
-
-const SIMULATED_EXECUTION_DELAY_MS = 650
-
-function wait(durationMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, durationMs)
-  })
-}
+import { runSolutionInUtilityProcess } from './run-solution-in-utility-process'
 
 export function registerExecutionHandler(): void {
   ipcMain.handle(
@@ -35,17 +28,7 @@ export function registerExecutionHandler(): void {
         }
       }
 
-      await wait(SIMULATED_EXECUTION_DELAY_MS)
-
-      return {
-        ok: true,
-        results: request.testCases.map((testCase, index) => ({
-          status: 'passed',
-          testCaseId: testCase.id,
-          actual: testCase.expected,
-          durationMs: index + 1
-        }))
-      }
+      return runSolutionInUtilityProcess(request)
     }
   )
 }
