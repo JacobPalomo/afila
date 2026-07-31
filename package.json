@@ -12,6 +12,7 @@
     "dev": "pnpm --filter './apps/desktop' dev",
     "format": "pnpm --filter './apps/desktop' format",
     "lint": "pnpm --filter './apps/desktop' lint",
+    "test": "pnpm --filter './apps/desktop' test",
     "typecheck": "pnpm --filter './apps/desktop' typecheck",
     "build": "pnpm --filter './apps/desktop' build",
     "build:unpack": "pnpm --filter './apps/desktop' build:unpack",
