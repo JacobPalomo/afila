@@ -11,6 +11,7 @@ export interface ExecutionTestCase {
 
 export interface RunSolutionRequest {
   readonly problemId: string
+  readonly entryPoint: string
   readonly sourceCode: string
   readonly testCases: readonly ExecutionTestCase[]
 }

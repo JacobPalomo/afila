@@ -10,6 +10,8 @@ import {
 
 const SIMULATED_EXECUTION_DELAY_MS = 650
 const MAX_PROBLEM_ID_LENGTH = 120
+const MAX_ENTRY_POINT_LENGTH = 120
+const ENTRY_POINT_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 const MAX_SOURCE_CODE_LENGTH = 100_000
 const MAX_TEST_CASE_COUNT = 100
 const MAX_TEST_VALUE_DEPTH = 20
@@ -32,6 +34,10 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 function isNonEmptyString(value: unknown, maximumLength: number): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= maximumLength
+}
+
+function isEntryPoint(value: unknown): value is string {
+  return isNonEmptyString(value, MAX_ENTRY_POINT_LENGTH) && ENTRY_POINT_PATTERN.test(value)
 }
 
 function isTestValue(value: unknown, depth = 0): value is TestValue {
@@ -84,6 +90,7 @@ function isRunSolutionRequest(value: unknown): value is RunSolutionRequest {
 
   if (
     !isNonEmptyString(value.problemId, MAX_PROBLEM_ID_LENGTH) ||
+    !isEntryPoint(value.entryPoint) ||
     typeof value.sourceCode !== 'string' ||
     value.sourceCode.length > MAX_SOURCE_CODE_LENGTH ||
     !Array.isArray(value.testCases) ||

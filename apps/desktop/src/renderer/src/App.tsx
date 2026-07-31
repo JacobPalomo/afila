@@ -53,6 +53,7 @@ function ProblemWorkspace({ problem }: ProblemWorkspaceProps): React.JSX.Element
     void window.api.execution
       .run({
         problemId: problem.id,
+        entryPoint: problem.entryPoint,
         sourceCode: code,
         testCases: problem.testCases.map(({ id, args, expected }) => ({
           id,

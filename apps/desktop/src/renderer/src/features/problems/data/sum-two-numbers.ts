@@ -11,6 +11,7 @@ export const sumTwoNumbersProblem = {
     'La función debe devolver un número.'
   ],
   fileName: 'solution.ts',
+  entryPoint: 'sumar',
   starterCode: `function sumar(a: number, b: number): number {
   return a + b
 }`,

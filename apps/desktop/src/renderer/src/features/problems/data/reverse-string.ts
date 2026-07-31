@@ -12,6 +12,7 @@ export const reverseStringProblem = {
     'La función debe conservar todos los caracteres, incluidos los espacios.'
   ],
   fileName: 'solution.ts',
+  entryPoint: 'invertir',
   starterCode: `function invertir(texto: string): string {
   return texto
 }`,
