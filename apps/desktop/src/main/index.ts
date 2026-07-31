@@ -5,6 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { registerExecutionHandler } from './execution/register-execution-handler'
 import { trustRendererWindow } from './security/trusted-renderer'
 import { pathToFileURL } from 'url'
+import { isAllowedExternalURL } from './security/external-url'
 
 function createWindow(): void {
   const developmentRendererURL = process.env['ELECTRON_RENDERER_URL']
@@ -38,7 +39,12 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (isAllowedExternalURL(details.url)) {
+      void shell.openExternal(details.url).catch((error: unknown) => {
+        console.error('Failed to open external URL', error)
+      })
+    }
+
     return { action: 'deny' }
   })
 
