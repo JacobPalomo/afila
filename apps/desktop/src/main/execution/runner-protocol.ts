@@ -162,3 +162,26 @@ export function isExecutionRunnerResponseMessage(
     isRunSolutionResponse(value.response)
   )
 }
+
+export function isExecutionRunnerResponseMessageForRequest(
+  value: unknown,
+  requestMessage: ExecutionRunnerRequestMessage
+): value is ExecutionRunnerResponseMessage {
+  if (
+    !isExecutionRunnerRequestMessage(requestMessage) ||
+    !isExecutionRunnerResponseMessage(value, requestMessage.requestId)
+  ) {
+    return false
+  }
+
+  if (!value.response.ok) {
+    return true
+  }
+
+  const { testCases } = requestMessage.request
+
+  return (
+    value.response.results.length === testCases.length &&
+    value.response.results.every((result, index) => result.testCaseId === testCases[index]?.id)
+  )
+}

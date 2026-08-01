@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   isExecutionRunnerRequestMessage,
-  isExecutionRunnerResponseMessage
+  isExecutionRunnerResponseMessage,
+  isExecutionRunnerResponseMessageForRequest,
+  type ExecutionRunnerResponseMessage
 } from './runner-protocol'
 
 const request = {
@@ -15,6 +17,38 @@ const request = {
       expected: 5
     }
   ]
+}
+
+const correlatedRequestMessage = {
+  type: 'run-solution',
+  requestId: 'request-1',
+  request: {
+    ...request,
+    testCases: [
+      ...request.testCases,
+      {
+        id: 'case-2',
+        args: [-2, 2],
+        expected: 0
+      }
+    ]
+  }
+} as const
+
+function createSuccessfulResponse(testCaseIds: readonly string[]): ExecutionRunnerResponseMessage {
+  return {
+    type: 'run-solution-result',
+    requestId: 'request-1',
+    response: {
+      ok: true,
+      results: testCaseIds.map((testCaseId) => ({
+        status: 'passed',
+        testCaseId,
+        actual: 0,
+        durationMs: 1
+      }))
+    }
+  }
 }
 
 describe('execution runner protocol', () => {
@@ -125,6 +159,52 @@ describe('execution runner protocol', () => {
           }
         },
         'request-1'
+      )
+    ).toBe(true)
+  })
+
+  it('accepts results that exactly match the original request', () => {
+    expect(
+      isExecutionRunnerResponseMessageForRequest(
+        createSuccessfulResponse(['case-1', 'case-2']),
+        correlatedRequestMessage
+      )
+    ).toBe(true)
+  })
+
+  it('rejects missing results from the original request', () => {
+    expect(
+      isExecutionRunnerResponseMessageForRequest(
+        createSuccessfulResponse(['case-1']),
+        correlatedRequestMessage
+      )
+    ).toBe(false)
+  })
+
+  it('rejects results returned in a different order', () => {
+    expect(
+      isExecutionRunnerResponseMessageForRequest(
+        createSuccessfulResponse(['case-2', 'case-1']),
+        correlatedRequestMessage
+      )
+    ).toBe(false)
+  })
+
+  it('accepts a correlated execution failure without results', () => {
+    expect(
+      isExecutionRunnerResponseMessageForRequest(
+        {
+          type: 'run-solution-result',
+          requestId: 'request-1',
+          response: {
+            ok: false,
+            error: {
+              code: 'execution-failed',
+              message: 'Execution failed.'
+            }
+          }
+        },
+        correlatedRequestMessage
       )
     ).toBe(true)
   })
