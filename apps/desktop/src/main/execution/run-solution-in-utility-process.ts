@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { RunSolutionRequest, RunSolutionResponse } from '../../shared/execution'
 import runnerPath from './execution-runner?modulePath'
 import {
-  isExecutionRunnerResponseMessage,
+  isExecutionRunnerResponseMessageForRequest,
   type ExecutionRunnerRequestMessage
 } from './runner-protocol'
 
@@ -25,6 +25,12 @@ export function runSolutionInUtilityProcess(
 ): Promise<RunSolutionResponse> {
   return new Promise((resolve) => {
     const requestId = randomUUID()
+
+    const requestMessage: ExecutionRunnerRequestMessage = {
+      type: 'run-solution',
+      requestId,
+      request
+    }
 
     let child: ReturnType<typeof utilityProcess.fork>
 
@@ -68,21 +74,15 @@ export function runSolutionInUtilityProcess(
         return
       }
 
-      const message: ExecutionRunnerRequestMessage = {
-        type: 'run-solution',
-        requestId,
-        request
-      }
-
       try {
-        child.postMessage(message)
+        child.postMessage(requestMessage)
       } catch {
         finish(createExecutionFailure('No se pudo enviar la solicitud al proceso de ejecución.'))
       }
     })
 
     child.once('message', (message) => {
-      if (!isExecutionRunnerResponseMessage(message, requestId)) {
+      if (!isExecutionRunnerResponseMessageForRequest(message, requestMessage)) {
         finish(createExecutionFailure('El proceso devolvió una respuesta no válida.'))
 
         return
