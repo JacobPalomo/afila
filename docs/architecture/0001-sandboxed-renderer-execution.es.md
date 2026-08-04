@@ -216,20 +216,20 @@ memoria o la terminación confiable de un proceso dedicado.
 
 ## 8. Comparación
 
-| Criterio | A: renderer con sandbox | B: CLI de runtime | C: helper integrado |
-| --- | --- | --- | --- |
-| Node.js ausente del realm del usuario | Sí | Depende del runtime | Sí, por diseño |
-| Frontera de proceso del SO | Sandbox de Chromium | Proceso separado; necesita sandbox adicional | Proceso separado; necesita sandbox adicional |
-| Timeout externo | Sí | Sí | Sí |
-| Control duro de memoria del runtime | No demostrado | Depende de la CLI | APIs sólidas del motor |
-| Superficie de APIs del navegador | Alta | Ninguna | Ninguna |
-| Superficie de API del host | Media | Media | Baja |
-| Código de app solo en TypeScript | Sí | En su mayoría; incluye binario nativo | No |
-| Build nativo necesario | No | No al usar precompilados | Sí |
-| Costo de empaquetado multiplataforma | Bajo | Medio | Alto |
-| Costo inicial de implementación | Medio | Medio | Alto |
-| Potencial de seguridad a largo plazo | Medio y condicional | Medio | Alto |
-| Seleccionado | Prototipo | No | Fallback |
+| Criterio                              | A: renderer con sandbox | B: CLI de runtime                            | C: helper integrado                          |
+| ------------------------------------- | ----------------------- | -------------------------------------------- | -------------------------------------------- |
+| Node.js ausente del realm del usuario | Sí                      | Depende del runtime                          | Sí, por diseño                               |
+| Frontera de proceso del SO            | Sandbox de Chromium     | Proceso separado; necesita sandbox adicional | Proceso separado; necesita sandbox adicional |
+| Timeout externo                       | Sí                      | Sí                                           | Sí                                           |
+| Control duro de memoria del runtime   | No demostrado           | Depende de la CLI                            | APIs sólidas del motor                       |
+| Superficie de APIs del navegador      | Alta                    | Ninguna                                      | Ninguna                                      |
+| Superficie de API del host            | Media                   | Media                                        | Baja                                         |
+| Código de app solo en TypeScript      | Sí                      | En su mayoría; incluye binario nativo        | No                                           |
+| Build nativo necesario                | No                      | No al usar precompilados                     | Sí                                           |
+| Costo de empaquetado multiplataforma  | Bajo                    | Medio                                        | Alto                                         |
+| Costo inicial de implementación       | Medio                   | Medio                                        | Alto                                         |
+| Potencial de seguridad a largo plazo  | Medio y condicional     | Medio                                        | Alto                                         |
+| Seleccionado                          | Prototipo               | No                                           | Fallback                                     |
 
 ## 9. Arquitectura seleccionada
 
@@ -321,14 +321,28 @@ recursos externos creados por la página permanecen bloqueados.
 
 ### 9.4 Restricciones de sesión
 
-Cada ejecución recibe una sesión única en memoria. El main debe crearla antes
-de que el `BrowserWindow` use la partición por primera vez:
+Afila mantiene una única sesión runner no persistente durante la vida del
+proceso de la aplicación:
 
 ```ts
-const runnerSession = session.fromPartition(uniqueInMemoryPartition, {
-  cache: false
-})
+const runnerSession = session.fromPartition("afila-sandbox-runner", {
+  cache: false,
+});
 ```
+
+La sesión solo puede reutilizarse de forma secuencial mediante un lease
+exclusivo. Cada ejecución continúa creando un BrowserWindow, WebContents,
+proceso renderer del sistema operativo y realm aislado de JavaScript nuevos.
+
+El lease solo se libera después de destruir el runner, eliminar todos los
+handlers, cerrar las conexiones activas, limpiar los datos y cachés auxiliares
+de la sesión y comprobar que la sesión está vacía.
+
+La creación concurrente de runners falla de forma cerrada.
+
+Cualquier fallo de inicialización, validación o limpieza envenena
+permanentemente el lease de la sesión durante el resto del proceso de la
+aplicación. Una sesión envenenada no puede reutilizarse hasta reiniciar Afila.
 
 La sesión debe:
 
@@ -343,6 +357,13 @@ La sesión debe:
   protocolo durante la limpieza.
 - Limpiar caché y datos de sesión antes de liberar referencias de la aplicación.
 - Nunca usar una partición `persist:`.
+- Permitir como máximo un lease de runner activo.
+- Crear una ventana, `WebContents`, proceso renderer y realm de JavaScript
+  nuevos para cada ejecución.
+- Liberar el lease únicamente después de una limpieza completa y de comprobar
+  que la sesión está vacía.
+- Envenenar permanentemente el lease después de cualquier inicialización o
+  limpieza incompleta.
 
 `webRequest` y CSP son capas de defensa en profundidad, no una demostración de
 que todo transporte de Chromium esté deshabilitado. El prototipo debe probar por

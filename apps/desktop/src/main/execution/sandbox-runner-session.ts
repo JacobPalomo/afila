@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { app, session, type Session } from 'electron'
 import {
   createSandboxRunnerDocumentResponse,
@@ -10,6 +9,8 @@ import {
   createSandboxRunnerRequestAudit,
   type SandboxRunnerRequestAuditSnapshot
 } from './sandbox-runner-request-audit'
+import { assertSandboxRunnerSessionStorageEmpty } from './sandbox-runner-session-storage'
+import { createSandboxRunnerSessionLeaseController } from './sandbox-runner-session-lease'
 
 export interface SandboxRunnerSessionHandle {
   readonly partition: string
@@ -17,11 +18,12 @@ export interface SandboxRunnerSessionHandle {
   readonly documentURL: typeof SANDBOX_RUNNER_DOCUMENT_URL
   getRequestAuditSnapshot(): SandboxRunnerRequestAuditSnapshot
   dispose(): Promise<void>
+  invalidate(): Promise<void>
 }
 
-function createSandboxRunnerPartition(): string {
-  return `afila-sandbox-runner-${randomUUID()}`
-}
+export const SANDBOX_RUNNER_PARTITION = 'afila-sandbox-runner' as const
+
+const sandboxRunnerSessionLeaseController = createSandboxRunnerSessionLeaseController()
 
 function captureCleanupError(errors: unknown[], action: () => void): void {
   try {
@@ -47,9 +49,26 @@ export function createSandboxRunnerSession(): SandboxRunnerSessionHandle {
     throw new Error('The sandbox runner session requires Electron to be ready.')
   }
 
-  const partition = createSandboxRunnerPartition()
+  const sessionLease = sandboxRunnerSessionLeaseController.acquire()
 
-  const runnerSession = session.fromPartition(partition, {
+  let runnerSession: Session
+
+  try {
+    runnerSession = session.fromPartition(SANDBOX_RUNNER_PARTITION, {
+      cache: false
+    })
+
+    if (runnerSession.storagePath !== null) {
+      throw new Error('The sandbox runner session must be non-persistent.')
+    }
+  } catch (error) {
+    sessionLease.poison()
+    throw error
+  }
+
+  const partition = SANDBOX_RUNNER_PARTITION
+
+  runnerSession = session.fromPartition(partition, {
     cache: false
   })
 
@@ -132,6 +151,8 @@ export function createSandboxRunnerSession(): SandboxRunnerSessionHandle {
       })
     )
   } catch (error) {
+    sessionLease.poison()
+
     const cleanupErrors = removeHandlers()
 
     if (cleanupErrors.length > 0) {
@@ -144,36 +165,86 @@ export function createSandboxRunnerSession(): SandboxRunnerSessionHandle {
     throw error
   }
 
-  let disposePromise: Promise<void> | null = null
+  let cleanupPromise: Promise<void> | null = null
 
-  const dispose = (): Promise<void> => {
-    if (disposePromise !== null) {
-      return disposePromise
+  const cleanup = (reusable: boolean): Promise<void> => {
+    if (cleanupPromise !== null) {
+      /*
+       * Si una limpieza normal ya estaba en curso pero
+       * después descubrimos que la sesión debe invalidarse,
+       * envenenamos el lease inmediatamente.
+       */
+      if (!reusable) {
+        sessionLease.poison()
+      }
+
+      return cleanupPromise
     }
 
-    disposePromise = (async () => {
+    /*
+     * invalidate() debe envenenar el lease antes de comenzar
+     * cualquier operación asíncrona de limpieza.
+     *
+     * Así ningún fallo intermedio podría devolver la sesión
+     * accidentalmente al estado disponible.
+     */
+    if (!reusable) {
+      sessionLease.poison()
+    }
+
+    cleanupPromise = (async () => {
       const cleanupErrors = removeHandlers()
 
       await captureAsyncCleanupError(cleanupErrors, () => runnerSession.closeAllConnections())
 
       await captureAsyncCleanupError(cleanupErrors, () => runnerSession.clearData())
 
+      await captureAsyncCleanupError(cleanupErrors, () => runnerSession.clearAuthCache())
+
+      await captureAsyncCleanupError(cleanupErrors, () => runnerSession.clearHostResolverCache())
+
+      await captureAsyncCleanupError(cleanupErrors, () =>
+        assertSandboxRunnerSessionStorageEmpty(runnerSession).then(() => undefined)
+      )
+
       if (cleanupErrors.length > 0) {
+        /*
+         * Incluso dispose() comenzó como una limpieza
+         * reutilizable, cualquier error vuelve insegura
+         * la sesión compartida.
+         */
+        sessionLease.poison()
+
         throw new AggregateError(
           cleanupErrors,
           'The sandbox runner session could not be cleaned completely.'
         )
       }
+
+      /*
+       * Solamente una limpieza normal y completamente
+       * exitosa puede devolver el lease.
+       *
+       * invalidate() nunca llega aquí con reusable === true.
+       */
+      if (reusable) {
+        sessionLease.release()
+      }
     })()
 
-    return disposePromise
+    return cleanupPromise
   }
+
+  const dispose = (): Promise<void> => cleanup(true)
+
+  const invalidate = (): Promise<void> => cleanup(false)
 
   return {
     partition,
     session: runnerSession,
     documentURL: SANDBOX_RUNNER_DOCUMENT_URL,
     getRequestAuditSnapshot: requestAudit.snapshot,
-    dispose
+    dispose,
+    invalidate
   }
 }

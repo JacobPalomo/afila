@@ -22,9 +22,12 @@ export interface SandboxRunnerWindowHandle {
   dispose(): Promise<void>
 }
 
+type SandboxRunnerSessionCleanupMode = 'reuse' | 'invalidate'
+
 async function cleanupSandboxRunnerWindow(
   runnerWindow: BrowserWindow | null,
-  sessionHandle: SandboxRunnerSessionHandle
+  sessionHandle: SandboxRunnerSessionHandle,
+  sessionCleanupMode: SandboxRunnerSessionCleanupMode
 ): Promise<unknown[]> {
   const errors: unknown[] = []
 
@@ -37,7 +40,11 @@ async function cleanupSandboxRunnerWindow(
   }
 
   try {
-    await sessionHandle.dispose()
+    if (sessionCleanupMode === 'invalidate') {
+      await sessionHandle.invalidate()
+    } else {
+      await sessionHandle.dispose()
+    }
   } catch (error) {
     errors.push(error)
   }
@@ -160,7 +167,11 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
 
     assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session, initialIdentity)
   } catch (error) {
-    const cleanupErrors = await cleanupSandboxRunnerWindow(runnerWindow, sessionHandle)
+    const cleanupErrors = await cleanupSandboxRunnerWindow(
+      runnerWindow,
+      sessionHandle,
+      'invalidate'
+    )
 
     if (cleanupErrors.length > 0) {
       throw new AggregateError(
@@ -199,7 +210,11 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     }
 
     disposePromise = (async () => {
-      const cleanupErrors = await cleanupSandboxRunnerWindow(establishedWindow, sessionHandle)
+      const cleanupErrors = await cleanupSandboxRunnerWindow(
+        establishedWindow,
+        sessionHandle,
+        'reuse'
+      )
 
       if (cleanupErrors.length > 0) {
         throw new AggregateError(
