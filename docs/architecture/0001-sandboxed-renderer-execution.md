@@ -204,20 +204,20 @@ reliable dedicated-process termination.
 
 ## 8. Comparison
 
-| Criterion | A: sandboxed renderer | B: runtime CLI | C: embedded helper |
-| --- | --- | --- | --- |
-| Node.js absent from user realm | Yes | Depends on runtime | Yes by design |
-| OS process boundary | Chromium sandbox | Separate process; additional sandbox needed | Separate process; additional sandbox needed |
-| External timeout | Yes | Yes | Yes |
-| Hard runtime memory control | Unproven | CLI-dependent | Strong engine API support |
-| Browser capability surface | High | None | None |
-| Custom host API surface | Medium | Medium | Low |
-| TypeScript-only app code | Yes | Mostly; bundles native binary | No |
-| Native build required | No | Not if using prebuilt binaries | Yes |
-| Cross-platform packaging cost | Low | Medium | High |
-| Initial implementation cost | Medium | Medium | High |
-| Long-term security potential | Medium, conditional | Medium | High |
-| Selected | Prototype | No | Fallback |
+| Criterion                      | A: sandboxed renderer | B: runtime CLI                              | C: embedded helper                          |
+| ------------------------------ | --------------------- | ------------------------------------------- | ------------------------------------------- |
+| Node.js absent from user realm | Yes                   | Depends on runtime                          | Yes by design                               |
+| OS process boundary            | Chromium sandbox      | Separate process; additional sandbox needed | Separate process; additional sandbox needed |
+| External timeout               | Yes                   | Yes                                         | Yes                                         |
+| Hard runtime memory control    | Unproven              | CLI-dependent                               | Strong engine API support                   |
+| Browser capability surface     | High                  | None                                        | None                                        |
+| Custom host API surface        | Medium                | Medium                                      | Low                                         |
+| TypeScript-only app code       | Yes                   | Mostly; bundles native binary               | No                                          |
+| Native build required          | No                    | Not if using prebuilt binaries              | Yes                                         |
+| Cross-platform packaging cost  | Low                   | Medium                                      | High                                        |
+| Initial implementation cost    | Medium                | Medium                                      | High                                        |
+| Long-term security potential   | Medium, conditional   | Medium                                      | High                                        |
+| Selected                       | Prototype             | No                                          | Fallback                                    |
 
 ## 9. Selected architecture
 
@@ -308,14 +308,28 @@ resources remain blocked.
 
 ### 9.4 Session restrictions
 
-Every execution receives a unique in-memory session. Main must create it before
-the `BrowserWindow` first uses the partition:
+Afila owns one dedicated non-persistent runner session for the lifetime of the
+application process:
 
 ```ts
-const runnerSession = session.fromPartition(uniqueInMemoryPartition, {
-  cache: false
-})
+const runnerSession = session.fromPartition("afila-sandbox-runner", {
+  cache: false,
+});
 ```
+
+The session may be reused only sequentially under one exclusive lease. A new
+BrowserWindow, WebContents, renderer operating-system process and isolated
+JavaScript realm are still created for every execution.
+
+The lease is released only after the runner is destroyed, all handlers are
+removed, active connections are closed, session data and auxiliary caches are
+cleared, and the session is inspected as empty.
+
+Concurrent runner creation fails closed.
+
+Any initialization, validation or cleanup failure permanently poisons the
+session lease for the remainder of the application process. A poisoned session
+cannot be reused until Afila restarts.
 
 The session must:
 
@@ -329,6 +343,11 @@ The session must:
   during cleanup.
 - Clear cache and session data before releasing application references.
 - Never use a `persist:` partition.
+- Permit at most one active runner lease.
+- Create a fresh window, WebContents, renderer process and JavaScript realm for
+  every execution.
+- Release the lease only after complete cleanup and empty-session inspection.
+- Permanently poison the lease after any incomplete initialization or cleanup.
 
 `webRequest` and CSP are defense-in-depth layers, not proof that every Chromium
 transport is disabled. The prototype must separately test WebRTC,
@@ -338,6 +357,16 @@ normal URL request.
 The prototype must also run a repeated-execution soak test and reject the design
 if sessions, handlers, connections or renderer processes accumulate without a
 bounded release path.
+
+A 200-cycle development soak test using one reusable in-memory session created
+200 distinct sandboxed renderer processes. Every runner window, WebContents and
+renderer process was released, the application returned to its exact baseline
+window and WebContents sets, and the final 50 cycles showed no monotonic private
+memory growth.
+
+Creating a new named partition for every execution was rejected because the
+browser process retained approximately 1.2 MiB per new partition during the
+diagnostic soak test.
 
 ### 9.5 Navigation and window restrictions
 

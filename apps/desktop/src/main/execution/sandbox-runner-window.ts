@@ -13,6 +13,7 @@ import { getSandboxRunnerRequestAuditViolation } from './sandbox-runner-request-
 import { runSandboxRunnerWebRTCLockdown } from './sandbox-runner-webrtc-lockdown'
 import { assertSandboxRunnerSessionStorageEmpty } from './sandbox-runner-session-storage'
 import { runSandboxRunnerStorageCapabilityProbe } from './sandbox-runner-storage-capability-probe'
+import { cleanupSandboxRunnerWindow } from './sandbox-runner-window-cleanup'
 
 export interface SandboxRunnerWindowHandle {
   readonly window: BrowserWindow
@@ -20,29 +21,6 @@ export interface SandboxRunnerWindowHandle {
   readonly identity: SandboxRunnerIdentity
   assertReadyForExecution(): SandboxRunnerIdentity
   dispose(): Promise<void>
-}
-
-async function cleanupSandboxRunnerWindow(
-  runnerWindow: BrowserWindow | null,
-  sessionHandle: SandboxRunnerSessionHandle
-): Promise<unknown[]> {
-  const errors: unknown[] = []
-
-  try {
-    if (runnerWindow !== null && !runnerWindow.isDestroyed()) {
-      runnerWindow.destroy()
-    }
-  } catch (error) {
-    errors.push(error)
-  }
-
-  try {
-    await sessionHandle.dispose()
-  } catch (error) {
-    errors.push(error)
-  }
-
-  return errors
 }
 
 function assertSandboxRunnerRequestAudit(sessionHandle: SandboxRunnerSessionHandle): void {
@@ -160,7 +138,11 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
 
     assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session, initialIdentity)
   } catch (error) {
-    const cleanupErrors = await cleanupSandboxRunnerWindow(runnerWindow, sessionHandle)
+    const cleanupErrors = await cleanupSandboxRunnerWindow(
+      runnerWindow,
+      sessionHandle,
+      'invalidate'
+    )
 
     if (cleanupErrors.length > 0) {
       throw new AggregateError(
@@ -199,7 +181,11 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     }
 
     disposePromise = (async () => {
-      const cleanupErrors = await cleanupSandboxRunnerWindow(establishedWindow, sessionHandle)
+      const cleanupErrors = await cleanupSandboxRunnerWindow(
+        establishedWindow,
+        sessionHandle,
+        'reuse'
+      )
 
       if (cleanupErrors.length > 0) {
         throw new AggregateError(
