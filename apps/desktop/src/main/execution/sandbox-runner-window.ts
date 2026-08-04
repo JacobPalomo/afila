@@ -13,6 +13,7 @@ import { getSandboxRunnerRequestAuditViolation } from './sandbox-runner-request-
 import { runSandboxRunnerWebRTCLockdown } from './sandbox-runner-webrtc-lockdown'
 import { assertSandboxRunnerSessionStorageEmpty } from './sandbox-runner-session-storage'
 import { runSandboxRunnerStorageCapabilityProbe } from './sandbox-runner-storage-capability-probe'
+import { cleanupSandboxRunnerWindow } from './sandbox-runner-window-cleanup'
 
 export interface SandboxRunnerWindowHandle {
   readonly window: BrowserWindow
@@ -20,45 +21,6 @@ export interface SandboxRunnerWindowHandle {
   readonly identity: SandboxRunnerIdentity
   assertReadyForExecution(): SandboxRunnerIdentity
   dispose(): Promise<void>
-}
-
-type SandboxRunnerSessionCleanupMode = 'reuse' | 'invalidate'
-
-async function cleanupSandboxRunnerWindow(
-  runnerWindow: BrowserWindow | null,
-  sessionHandle: SandboxRunnerSessionHandle,
-  sessionCleanupMode: SandboxRunnerSessionCleanupMode
-): Promise<unknown[]> {
-  const errors: unknown[] = []
-
-  let mustInvalidate = sessionCleanupMode === 'invalidate'
-
-  try {
-    if (runnerWindow !== null && !runnerWindow.isDestroyed()) {
-      runnerWindow.destroy()
-    }
-
-    if (runnerWindow !== null && !runnerWindow.isDestroyed()) {
-      mustInvalidate = true
-
-      errors.push(new Error('The sandbox runner window remained alive after destruction.'))
-    }
-  } catch (error) {
-    mustInvalidate = true
-    errors.push(error)
-  }
-
-  try {
-    if (mustInvalidate) {
-      await sessionHandle.invalidate()
-    } else {
-      await sessionHandle.dispose()
-    }
-  } catch (error) {
-    errors.push(error)
-  }
-
-  return errors
 }
 
 function assertSandboxRunnerRequestAudit(sessionHandle: SandboxRunnerSessionHandle): void {
