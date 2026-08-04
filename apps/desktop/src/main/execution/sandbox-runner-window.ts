@@ -8,6 +8,8 @@ import { createSandboxRunnerWindowOptions } from './sandbox-runner-window-option
 import { assertSandboxRunnerIdentity } from './sandbox-runner-identity'
 import type { SandboxRunnerIdentity } from './sandbox-runner-identity-policy'
 import { runSandboxRunnerIsolatedWorldProbe } from './sandbox-runner-isolated-world-probe'
+import { runSandboxRunnerBrowserCapabilityProbe } from './sandbox-runner-browser-capability-probe'
+import { getSandboxRunnerRequestAuditViolation } from './sandbox-runner-request-audit'
 
 export interface SandboxRunnerWindowHandle {
   readonly window: BrowserWindow
@@ -38,6 +40,14 @@ async function cleanupSandboxRunnerWindow(
   }
 
   return errors
+}
+
+function assertSandboxRunnerRequestAudit(sessionHandle: SandboxRunnerSessionHandle): void {
+  const violation = getSandboxRunnerRequestAuditViolation(sessionHandle.getRequestAuditSnapshot())
+
+  if (violation !== null) {
+    throw new Error(violation)
+  }
 }
 
 export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHandle> {
@@ -124,6 +134,12 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     await runSandboxRunnerIsolatedWorldProbe(contents)
 
     assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session, initialIdentity)
+
+    await runSandboxRunnerBrowserCapabilityProbe(contents)
+
+    assertSandboxRunnerRequestAudit(sessionHandle)
+
+    assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session, initialIdentity)
   } catch (error) {
     const cleanupErrors = await cleanupSandboxRunnerWindow(runnerWindow, sessionHandle)
 
@@ -144,8 +160,17 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
   const establishedWindow = runnerWindow
   const establishedIdentity = initialIdentity
 
-  const assertReadyForExecution = (): SandboxRunnerIdentity =>
-    assertSandboxRunnerIdentity(establishedWindow, sessionHandle.session, establishedIdentity)
+  const assertReadyForExecution = (): SandboxRunnerIdentity => {
+    const identity = assertSandboxRunnerIdentity(
+      establishedWindow,
+      sessionHandle.session,
+      establishedIdentity
+    )
+
+    assertSandboxRunnerRequestAudit(sessionHandle)
+
+    return identity
+  }
 
   let disposePromise: Promise<void> | null = null
 
