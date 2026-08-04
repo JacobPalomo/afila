@@ -5,10 +5,14 @@ import {
   type SandboxRunnerSessionHandle
 } from './sandbox-runner-session'
 import { createSandboxRunnerWindowOptions } from './sandbox-runner-window-options'
+import { assertSandboxRunnerIdentity } from './sandbox-runner-identity'
+import type { SandboxRunnerIdentity } from './sandbox-runner-identity-policy'
 
 export interface SandboxRunnerWindowHandle {
   readonly window: BrowserWindow
   readonly session: SandboxRunnerSessionHandle
+  readonly identity: SandboxRunnerIdentity
+  assertReadyForExecution(): SandboxRunnerIdentity
   dispose(): Promise<void>
 }
 
@@ -39,6 +43,7 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
   const sessionHandle = createSandboxRunnerSession()
 
   let runnerWindow: BrowserWindow | null = null
+  let initialIdentity: SandboxRunnerIdentity | null = null
 
   try {
     runnerWindow = new BrowserWindow(createSandboxRunnerWindowOptions(sessionHandle.session))
@@ -50,6 +55,10 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
         runnerWindow.destroy()
       }
     }
+
+    contents.on('render-process-gone', () => {
+      destroyRunnerWindow()
+    })
 
     contents.on('frame-created', (_event, details) => {
       const frame = details.frame
@@ -108,6 +117,8 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     if (runnerWindow.isVisible()) {
       throw new Error('The sandbox runner window must remain hidden.')
     }
+
+    initialIdentity = assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session)
   } catch (error) {
     const cleanupErrors = await cleanupSandboxRunnerWindow(runnerWindow, sessionHandle)
 
@@ -121,6 +132,16 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     throw error
   }
 
+  if (runnerWindow === null || initialIdentity === null) {
+    throw new Error('The sandbox runner identity was not established.')
+  }
+
+  const establishedWindow = runnerWindow
+  const establishedIdentity = initialIdentity
+
+  const assertReadyForExecution = (): SandboxRunnerIdentity =>
+    assertSandboxRunnerIdentity(establishedWindow, sessionHandle.session, establishedIdentity)
+
   let disposePromise: Promise<void> | null = null
 
   const dispose = (): Promise<void> => {
@@ -129,7 +150,7 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     }
 
     disposePromise = (async () => {
-      const cleanupErrors = await cleanupSandboxRunnerWindow(runnerWindow, sessionHandle)
+      const cleanupErrors = await cleanupSandboxRunnerWindow(establishedWindow, sessionHandle)
 
       if (cleanupErrors.length > 0) {
         throw new AggregateError(
@@ -143,8 +164,10 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
   }
 
   return {
-    window: runnerWindow,
+    window: establishedWindow,
     session: sessionHandle,
+    identity: establishedIdentity,
+    assertReadyForExecution,
     dispose
   }
 }
