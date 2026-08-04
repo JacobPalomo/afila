@@ -6,11 +6,16 @@ import {
   SANDBOX_RUNNER_DOCUMENT_URL,
   SANDBOX_RUNNER_SCHEME
 } from './sandbox-runner-document'
+import {
+  createSandboxRunnerRequestAudit,
+  type SandboxRunnerRequestAuditSnapshot
+} from './sandbox-runner-request-audit'
 
 export interface SandboxRunnerSessionHandle {
   readonly partition: string
   readonly session: Session
   readonly documentURL: typeof SANDBOX_RUNNER_DOCUMENT_URL
+  getRequestAuditSnapshot(): SandboxRunnerRequestAuditSnapshot
   dispose(): Promise<void>
 }
 
@@ -47,6 +52,8 @@ export function createSandboxRunnerSession(): SandboxRunnerSessionHandle {
   const runnerSession = session.fromPartition(partition, {
     cache: false
   })
+
+  const requestAudit = createSandboxRunnerRequestAudit()
 
   if (runnerSession.storagePath !== null) {
     throw new Error('The sandbox runner session must be non-persistent.')
@@ -99,13 +106,19 @@ export function createSandboxRunnerSession(): SandboxRunnerSessionHandle {
     runnerSession.on('will-download', preventDownload)
 
     runnerSession.webRequest.onBeforeRequest((details, callback) => {
-      const allowed = isAllowedSandboxRunnerDocumentRequest({
+      const request = {
         url: details.url,
         method: details.method,
         resourceType: details.resourceType
-      })
+      }
 
-      callback({ cancel: !allowed })
+      const allowed = isAllowedSandboxRunnerDocumentRequest(request)
+
+      requestAudit.record(request, allowed)
+
+      callback({
+        cancel: !allowed
+      })
     })
 
     if (runnerSession.protocol.isProtocolHandled(SANDBOX_RUNNER_SCHEME)) {
@@ -163,6 +176,7 @@ export function createSandboxRunnerSession(): SandboxRunnerSessionHandle {
     partition,
     session: runnerSession,
     documentURL: SANDBOX_RUNNER_DOCUMENT_URL,
+    getRequestAuditSnapshot: requestAudit.snapshot,
     dispose
   }
 }
