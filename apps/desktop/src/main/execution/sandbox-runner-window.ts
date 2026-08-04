@@ -10,6 +10,7 @@ import type { SandboxRunnerIdentity } from './sandbox-runner-identity-policy'
 import { runSandboxRunnerIsolatedWorldProbe } from './sandbox-runner-isolated-world-probe'
 import { runSandboxRunnerBrowserCapabilityProbe } from './sandbox-runner-browser-capability-probe'
 import { getSandboxRunnerRequestAuditViolation } from './sandbox-runner-request-audit'
+import { runSandboxRunnerWebRTCLockdown } from './sandbox-runner-webrtc-lockdown'
 
 export interface SandboxRunnerWindowHandle {
   readonly window: BrowserWindow
@@ -136,6 +137,12 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session, initialIdentity)
 
     await runSandboxRunnerBrowserCapabilityProbe(contents)
+
+    assertSandboxRunnerRequestAudit(sessionHandle)
+
+    assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session, initialIdentity)
+
+    await runSandboxRunnerWebRTCLockdown(contents)
 
     assertSandboxRunnerRequestAudit(sessionHandle)
 
