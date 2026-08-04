@@ -7,6 +7,7 @@ import {
 import { createSandboxRunnerWindowOptions } from './sandbox-runner-window-options'
 import { assertSandboxRunnerIdentity } from './sandbox-runner-identity'
 import type { SandboxRunnerIdentity } from './sandbox-runner-identity-policy'
+import { runSandboxRunnerIsolatedWorldProbe } from './sandbox-runner-isolated-world-probe'
 
 export interface SandboxRunnerWindowHandle {
   readonly window: BrowserWindow
@@ -119,6 +120,10 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     }
 
     initialIdentity = assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session)
+
+    await runSandboxRunnerIsolatedWorldProbe(contents)
+
+    assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session, initialIdentity)
   } catch (error) {
     const cleanupErrors = await cleanupSandboxRunnerWindow(runnerWindow, sessionHandle)
 
