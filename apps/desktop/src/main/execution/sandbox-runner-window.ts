@@ -31,16 +31,25 @@ async function cleanupSandboxRunnerWindow(
 ): Promise<unknown[]> {
   const errors: unknown[] = []
 
+  let mustInvalidate = sessionCleanupMode === 'invalidate'
+
   try {
     if (runnerWindow !== null && !runnerWindow.isDestroyed()) {
       runnerWindow.destroy()
     }
+
+    if (runnerWindow !== null && !runnerWindow.isDestroyed()) {
+      mustInvalidate = true
+
+      errors.push(new Error('The sandbox runner window remained alive after destruction.'))
+    }
   } catch (error) {
+    mustInvalidate = true
     errors.push(error)
   }
 
   try {
-    if (sessionCleanupMode === 'invalidate') {
+    if (mustInvalidate) {
       await sessionHandle.invalidate()
     } else {
       await sessionHandle.dispose()

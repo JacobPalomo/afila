@@ -374,6 +374,16 @@ El prototipo también debe ejecutar una prueba prolongada de ejecuciones repetid
 y rechazar el diseño si sesiones, handlers, conexiones o procesos renderer se
 acumulan sin una ruta de liberación acotada.
 
+Una prueba prolongada de desarrollo de 200 ciclos utilizando una única sesión
+en memoria reutilizable creó 200 procesos renderer distintos con sandbox. Cada
+ventana runner, `WebContents` y proceso renderer fue liberado, la aplicación
+regresó exactamente a sus conjuntos iniciales de ventanas y `WebContents`, y
+los últimos 50 ciclos no mostraron crecimiento monótono de memoria privada.
+
+Se rechazó crear una nueva partición con nombre para cada ejecución porque el
+proceso del navegador retenía aproximadamente 1.2 MiB por cada partición nueva
+durante la prueba diagnóstica.
+
 ### 9.5 Restricciones de navegación y ventanas
 
 El runner debe:

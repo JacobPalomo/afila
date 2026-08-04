@@ -68,15 +68,7 @@ export function createSandboxRunnerSession(): SandboxRunnerSessionHandle {
 
   const partition = SANDBOX_RUNNER_PARTITION
 
-  runnerSession = session.fromPartition(partition, {
-    cache: false
-  })
-
   const requestAudit = createSandboxRunnerRequestAudit()
-
-  if (runnerSession.storagePath !== null) {
-    throw new Error('The sandbox runner session must be non-persistent.')
-  }
 
   const preventDownload = (event: { preventDefault(): void }): void => {
     event.preventDefault()
