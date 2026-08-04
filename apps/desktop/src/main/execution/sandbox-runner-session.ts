@@ -156,10 +156,7 @@ export function createSandboxRunnerSession(): SandboxRunnerSessionHandle {
 
       await captureAsyncCleanupError(cleanupErrors, () => runnerSession.closeAllConnections())
 
-      await Promise.all([
-        captureAsyncCleanupError(cleanupErrors, () => runnerSession.clearCache()),
-        captureAsyncCleanupError(cleanupErrors, () => runnerSession.clearStorageData())
-      ])
+      await captureAsyncCleanupError(cleanupErrors, () => runnerSession.clearData())
 
       if (cleanupErrors.length > 0) {
         throw new AggregateError(

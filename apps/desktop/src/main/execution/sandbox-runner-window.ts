@@ -11,6 +11,8 @@ import { runSandboxRunnerIsolatedWorldProbe } from './sandbox-runner-isolated-wo
 import { runSandboxRunnerBrowserCapabilityProbe } from './sandbox-runner-browser-capability-probe'
 import { getSandboxRunnerRequestAuditViolation } from './sandbox-runner-request-audit'
 import { runSandboxRunnerWebRTCLockdown } from './sandbox-runner-webrtc-lockdown'
+import { assertSandboxRunnerSessionStorageEmpty } from './sandbox-runner-session-storage'
+import { runSandboxRunnerStorageCapabilityProbe } from './sandbox-runner-storage-capability-probe'
 
 export interface SandboxRunnerWindowHandle {
   readonly window: BrowserWindow
@@ -58,6 +60,8 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
   let initialIdentity: SandboxRunnerIdentity | null = null
 
   try {
+    await assertSandboxRunnerSessionStorageEmpty(sessionHandle.session)
+
     runnerWindow = new BrowserWindow(createSandboxRunnerWindowOptions(sessionHandle.session))
 
     const contents = runnerWindow.webContents
@@ -137,6 +141,14 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session, initialIdentity)
 
     await runSandboxRunnerBrowserCapabilityProbe(contents)
+
+    assertSandboxRunnerRequestAudit(sessionHandle)
+
+    assertSandboxRunnerIdentity(runnerWindow, sessionHandle.session, initialIdentity)
+
+    await runSandboxRunnerStorageCapabilityProbe(contents)
+
+    await assertSandboxRunnerSessionStorageEmpty(sessionHandle.session)
 
     assertSandboxRunnerRequestAudit(sessionHandle)
 
