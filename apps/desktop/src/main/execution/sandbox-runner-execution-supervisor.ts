@@ -4,7 +4,7 @@ export interface SandboxRunnerRendererGoneDetails {
 }
 
 export type SandboxRunnerExecutionTerminationReason =
-  'timeout' | 'renderer-gone' | 'execution-failed' | 'monitor-failed'
+  'timeout' | 'renderer-gone' | 'execution-failed' | 'monitor-failed' | 'cleanup-failed'
 
 export type SandboxRunnerExecutionOutcome<T> =
   | {
@@ -52,9 +52,8 @@ type SandboxRunnerExecutionEvent<T> =
       readonly type: 'execution-failed'
       readonly error: unknown
     }
-  | {
-      readonly type: 'timed-out'
-    }
+
+type SandboxRunnerRendererEvent =
   | {
       readonly type: 'renderer-gone'
       readonly details: SandboxRunnerRendererGoneDetails
@@ -64,8 +63,23 @@ type SandboxRunnerExecutionEvent<T> =
       readonly error: unknown
     }
 
+interface SandboxRunnerTimeoutEvent {
+  readonly type: 'timed-out'
+}
+
+type SandboxRunnerDisposalEvent =
+  | {
+      readonly type: 'disposed'
+    }
+  | {
+      readonly type: 'dispose-failed'
+      readonly error: unknown
+    }
+
 const defaultClock: SandboxRunnerExecutionSupervisorClock = {
-  setTimeout: (callback: () => void, delayMs: number): unknown => setTimeout(callback, delayMs),
+  setTimeout: (callback: () => void, delayMs: number): unknown => {
+    return setTimeout(callback, delayMs)
+  },
 
   clearTimeout: (handle: unknown): void => {
     clearTimeout(handle as ReturnType<typeof setTimeout>)
@@ -76,11 +90,15 @@ function isPositiveSafeInteger(value: number): boolean {
   return Number.isSafeInteger(value) && value > 0
 }
 
-async function terminateAfterFailure(
+function assertNever(value: never): never {
+  throw new Error(`Unexpected sandbox runner event: ${JSON.stringify(value)}`)
+}
+
+async function terminateAfterFailure<T>(
   terminate: SuperviseSandboxRunnerExecutionOptions<unknown>['terminate'],
   reason: SandboxRunnerExecutionTerminationReason,
   originalError: unknown
-): Promise<SandboxRunnerExecutionOutcome<never>> {
+): Promise<SandboxRunnerExecutionOutcome<T>> {
   try {
     await terminate(reason)
   } catch (terminationError) {
@@ -99,6 +117,25 @@ async function terminateAfterFailure(
   }
 }
 
+async function terminateAfterRendererGone<T>(
+  terminate: SuperviseSandboxRunnerExecutionOptions<unknown>['terminate'],
+  details: SandboxRunnerRendererGoneDetails
+): Promise<SandboxRunnerExecutionOutcome<T>> {
+  try {
+    await terminate('renderer-gone')
+  } catch (error) {
+    return {
+      status: 'failed',
+      error
+    }
+  }
+
+  return {
+    status: 'renderer-gone',
+    details
+  }
+}
+
 export async function superviseSandboxRunnerExecution<T>(
   options: SuperviseSandboxRunnerExecutionOptions<T>
 ): Promise<SandboxRunnerExecutionOutcome<T>> {
@@ -111,24 +148,24 @@ export async function superviseSandboxRunnerExecution<T>(
   const executionEvent: Promise<SandboxRunnerExecutionEvent<T>> = Promise.resolve()
     .then(options.execute)
     .then(
-      (value) => ({
+      (value): SandboxRunnerExecutionEvent<T> => ({
         type: 'completed',
         value
       }),
-      (error) => ({
+      (error): SandboxRunnerExecutionEvent<T> => ({
         type: 'execution-failed',
         error
       })
     )
 
-  const rendererGoneEvent: Promise<SandboxRunnerExecutionEvent<T>> = Promise.resolve()
+  const rendererEvent: Promise<SandboxRunnerRendererEvent> = Promise.resolve()
     .then(options.waitForRendererGone)
     .then(
-      (details) => ({
+      (details): SandboxRunnerRendererEvent => ({
         type: 'renderer-gone',
         details
       }),
-      (error) => ({
+      (error): SandboxRunnerRendererEvent => ({
         type: 'monitor-failed',
         error
       })
@@ -136,7 +173,7 @@ export async function superviseSandboxRunnerExecution<T>(
 
   let timeoutHandle: unknown = null
 
-  const timeoutEvent = new Promise<SandboxRunnerExecutionEvent<T>>((resolve) => {
+  const timeoutEvent = new Promise<SandboxRunnerTimeoutEvent>((resolve) => {
     timeoutHandle = clock.setTimeout(() => {
       resolve({
         type: 'timed-out'
@@ -144,27 +181,53 @@ export async function superviseSandboxRunnerExecution<T>(
     }, options.timeoutMs)
   })
 
-  const event = await Promise.race([executionEvent, rendererGoneEvent, timeoutEvent])
+  const initialEvent = await Promise.race([executionEvent, rendererEvent, timeoutEvent])
 
   clock.clearTimeout(timeoutHandle)
 
-  switch (event.type) {
-    case 'completed': {
-      try {
-        await options.dispose()
-      } catch (error) {
-        return {
-          status: 'failed',
+  if (initialEvent.type === 'completed') {
+    const disposalEvent: Promise<SandboxRunnerDisposalEvent> = Promise.resolve()
+      .then(options.dispose)
+      .then(
+        (): SandboxRunnerDisposalEvent => ({
+          type: 'disposed'
+        }),
+        (error): SandboxRunnerDisposalEvent => ({
+          type: 'dispose-failed',
           error
+        })
+      )
+
+    /*
+     * Keep monitoring the renderer until reusable
+     * cleanup has completed. A crash during cleanup
+     * must elevate the in-flight cleanup to
+     * invalidation.
+     */
+    const finalizationEvent = await Promise.race([disposalEvent, rendererEvent])
+
+    switch (finalizationEvent.type) {
+      case 'disposed':
+        return {
+          status: 'completed',
+          value: initialEvent.value
         }
-      }
 
-      return {
-        status: 'completed',
-        value: event.value
-      }
+      case 'renderer-gone':
+        return terminateAfterRendererGone(options.terminate, finalizationEvent.details)
+
+      case 'monitor-failed':
+        return terminateAfterFailure(options.terminate, 'monitor-failed', finalizationEvent.error)
+
+      case 'dispose-failed':
+        return terminateAfterFailure(options.terminate, 'cleanup-failed', finalizationEvent.error)
+
+      default:
+        return assertNever(finalizationEvent)
     }
+  }
 
+  switch (initialEvent.type) {
     case 'timed-out': {
       try {
         await options.terminate('timeout')
@@ -180,26 +243,16 @@ export async function superviseSandboxRunnerExecution<T>(
       }
     }
 
-    case 'renderer-gone': {
-      try {
-        await options.terminate('renderer-gone')
-      } catch (error) {
-        return {
-          status: 'failed',
-          error
-        }
-      }
-
-      return {
-        status: 'renderer-gone',
-        details: event.details
-      }
-    }
+    case 'renderer-gone':
+      return terminateAfterRendererGone(options.terminate, initialEvent.details)
 
     case 'execution-failed':
-      return terminateAfterFailure(options.terminate, 'execution-failed', event.error)
+      return terminateAfterFailure(options.terminate, 'execution-failed', initialEvent.error)
 
     case 'monitor-failed':
-      return terminateAfterFailure(options.terminate, 'monitor-failed', event.error)
+      return terminateAfterFailure(options.terminate, 'monitor-failed', initialEvent.error)
+
+    default:
+      return assertNever(initialEvent)
   }
 }

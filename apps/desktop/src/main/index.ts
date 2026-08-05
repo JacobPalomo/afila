@@ -9,6 +9,8 @@ import { isAllowedExternalURL } from './security/external-url'
 import { parseSandboxRunnerExecutionDiagnosticScenario } from './execution/sandbox-runner-execution-diagnostic-policy'
 import { runSandboxRunnerExecutionDiagnostic } from './execution/sandbox-runner-execution-diagnostic'
 
+let sandboxExecutionDiagnosticActive = false
+
 function createWindow(): void {
   const developmentRendererURL = process.env['ELECTRON_RENDERER_URL']
 
@@ -68,6 +70,8 @@ async function startApplication(): Promise<void> {
   )
 
   if (diagnosticScenario !== null) {
+    sandboxExecutionDiagnosticActive = true
+
     if (app.isPackaged) {
       throw new Error('Sandbox execution diagnostics are disabled in packaged applications.')
     }
@@ -111,7 +115,7 @@ void app
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (!sandboxExecutionDiagnosticActive && process.platform !== 'darwin') {
     app.quit()
   }
 })

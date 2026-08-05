@@ -57,6 +57,29 @@ function createManualClock(): {
   }
 }
 
+interface Deferred<T> {
+  readonly promise: Promise<T>
+  resolve(value: T): void
+  reject(error: unknown): void
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolvePromise: (value: T) => void = () => undefined
+
+  let rejectPromise: (error: unknown) => void = () => undefined
+
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve
+    rejectPromise = reject
+  })
+
+  return {
+    promise,
+    resolve: resolvePromise,
+    reject: rejectPromise
+  }
+}
+
 function createNeverSettlingPromise<T>(): Promise<T> {
   return new Promise<T>(() => undefined)
 }
@@ -229,5 +252,139 @@ describe('sandbox runner window execution', () => {
     }
 
     expect(outcome.error).toBeInstanceOf(AggregateError)
+  })
+
+  it('invalidates when post-execution validation fails', async () => {
+    const contents = new FakeWebContents()
+
+    const { handle, dispose, invalidate } = createHandle(contents)
+
+    const validationError = new Error('Simulated post-execution validation failure.')
+
+    const assertReadyForExecution = vi.mocked(handle.assertReadyForExecution)
+
+    assertReadyForExecution
+      .mockReturnValueOnce(handle.identity)
+      .mockReturnValueOnce(handle.identity)
+      .mockImplementationOnce(() => {
+        throw validationError
+      })
+
+    const outcome = await runSandboxRunnerWindowExecution({
+      handle,
+      timeoutMs: 100,
+      execute: async () => 'untrusted-result'
+    })
+
+    expect(outcome).toEqual({
+      status: 'failed',
+      error: validationError
+    })
+
+    expect(invalidate).toHaveBeenCalledTimes(1)
+
+    expect(dispose).not.toHaveBeenCalled()
+  })
+
+  it('escalates disposal when the renderer disappears during cleanup', async () => {
+    const contents = new FakeWebContents()
+
+    const { handle, dispose, invalidate } = createHandle(contents)
+
+    const cleanup = createDeferred<void>()
+
+    const disposeStarted = createDeferred<void>()
+
+    const invalidationStarted = createDeferred<void>()
+
+    dispose.mockImplementation((): Promise<void> => {
+      disposeStarted.resolve()
+
+      return cleanup.promise
+    })
+
+    /*
+     * The real handle returns the same cleanup
+     * promise when invalidate() escalates an
+     * already-running dispose().
+     */
+    invalidate.mockImplementation((): Promise<void> => {
+      invalidationStarted.resolve()
+
+      return cleanup.promise
+    })
+
+    const execution = runSandboxRunnerWindowExecution({
+      handle,
+      timeoutMs: 100,
+      execute: async () => 'completed'
+    })
+
+    await disposeStarted.promise
+
+    contents.crashed = true
+
+    contents.emit(
+      'render-process-gone',
+      {},
+      {
+        reason: 'crashed',
+        exitCode: 9
+      }
+    )
+
+    /*
+     * Do not assume a fixed number of microtasks.
+     * Wait for the observable escalation instead.
+     */
+    await invalidationStarted.promise
+
+    expect(invalidate).toHaveBeenCalledTimes(1)
+
+    cleanup.resolve()
+
+    await expect(execution).resolves.toEqual({
+      status: 'renderer-gone',
+      details: {
+        reason: 'crashed',
+        exitCode: 9
+      }
+    })
+
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores renderer events delivered after successful disposal', async () => {
+    const contents = new FakeWebContents()
+
+    const { handle, invalidate } = createHandle(contents)
+
+    await expect(
+      runSandboxRunnerWindowExecution({
+        handle,
+        timeoutMs: 100,
+        execute: async () => 'completed'
+      })
+    ).resolves.toEqual({
+      status: 'completed',
+      value: 'completed'
+    })
+
+    expect(contents.listenerCount('render-process-gone')).toBe(0)
+
+    contents.crashed = true
+
+    contents.emit(
+      'render-process-gone',
+      {},
+      {
+        reason: 'crashed',
+        exitCode: 9
+      }
+    )
+
+    await Promise.resolve()
+
+    expect(invalidate).not.toHaveBeenCalled()
   })
 })

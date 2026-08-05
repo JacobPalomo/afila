@@ -434,11 +434,11 @@ disabled in packaged applications.
 On August 4, 2026, the Electron preview build on macOS produced the following
 results:
 
-- A fixed synchronous script completed normally in 48 ms.
+- A fixed synchronous script completed normally in 42 ms.
 - A fixed infinite loop reached the 250 ms external timeout and completed
-  forced termination and cleanup in 296 ms.
+  forced termination and cleanup in 285 ms.
 - A forced renderer termination produced `render-process-gone` with reason
-  `killed` and exit code `2`, completing cleanup in 162 ms.
+  `killed` and exit code `2`, completing cleanup in 139 ms.
 - Every scenario restored the exact baseline BrowserWindow and WebContents ID
   sets.
 - Every scenario confirmed that the runner BrowserWindow, WebContents and

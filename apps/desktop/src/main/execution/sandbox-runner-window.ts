@@ -14,10 +14,8 @@ import { runSandboxRunnerWebRTCLockdown } from './sandbox-runner-webrtc-lockdown
 import { assertSandboxRunnerSessionStorageEmpty } from './sandbox-runner-session-storage'
 import { runSandboxRunnerStorageCapabilityProbe } from './sandbox-runner-storage-capability-probe'
 import { cleanupSandboxRunnerWindow } from './sandbox-runner-window-cleanup'
-import {
-  captureSandboxRunnerProcessReleaseTarget,
-  waitForCapturedSandboxRunnerProcessRelease
-} from './sandbox-runner-process-release'
+import { waitForCapturedSandboxRunnerProcessRelease } from './sandbox-runner-process-release'
+import { captureSandboxRunnerWindowReleaseTarget } from './sandbox-runner-window-release-target'
 
 export interface SandboxRunnerWindowHandle {
   readonly window: BrowserWindow
@@ -167,9 +165,10 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
 
   const establishedWindow = runnerWindow
   const establishedIdentity = initialIdentity
-  const processReleaseTarget = captureSandboxRunnerProcessReleaseTarget(
+  const processReleaseTarget = await captureSandboxRunnerWindowReleaseTarget(
     establishedWindow,
-    establishedIdentity
+    establishedIdentity,
+    sessionHandle
   )
 
   const assertReadyForExecution = (): SandboxRunnerIdentity => {

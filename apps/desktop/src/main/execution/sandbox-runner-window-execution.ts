@@ -90,7 +90,16 @@ export async function runSandboxRunnerWindowExecution<T>(
       execute: async (): Promise<T> => {
         handle.assertReadyForExecution()
 
-        return options.execute(contents)
+        const value = await options.execute(contents)
+
+        /*
+         * Never accept a result before confirming that
+         * the runner identity, process exclusivity,
+         * document and request audit still match.
+         */
+        handle.assertReadyForExecution()
+
+        return value
       },
 
       waitForRendererGone: () => {
@@ -102,8 +111,6 @@ export async function runSandboxRunnerWindowExecution<T>(
       },
 
       dispose: async (): Promise<void> => {
-        stopMonitoring()
-
         await handle.dispose()
       },
 

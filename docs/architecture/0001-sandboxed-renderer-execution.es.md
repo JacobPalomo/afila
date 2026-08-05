@@ -457,11 +457,11 @@ internos fijos y está deshabilitado en aplicaciones empaquetadas.
 El 4 de agosto de 2026, el build preview de Electron en macOS produjo los
 siguientes resultados:
 
-- Un script síncrono fijo terminó normalmente en 48 ms.
+- Un script síncrono fijo terminó normalmente en 42 ms.
 - Un bucle infinito fijo alcanzó el timeout externo de 250 ms y completó la
-  terminación forzada y limpieza en 296 ms.
+  terminación forzada y limpieza en 285 ms.
 - Una terminación forzada del renderer produjo `render-process-gone` con razón
-  `killed` y código de salida `2`, completando la limpieza en 162 ms.
+  `killed` y código de salida `2`, completando la limpieza en 139 ms.
 - Cada escenario restauró exactamente los conjuntos baseline de IDs de
   BrowserWindow y WebContents.
 - Cada escenario confirmó que BrowserWindow, WebContents y el proceso renderer

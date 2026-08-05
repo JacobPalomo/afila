@@ -264,4 +264,76 @@ describe('sandbox runner execution supervisor', () => {
       })
     ).rejects.toThrow('execution timeout')
   })
+
+  it('terminates when the renderer disappears during disposal', async () => {
+    const { clock } = createManualClock()
+
+    const rendererGone = createDeferred<SandboxRunnerRendererGoneDetails>()
+
+    const disposal = createDeferred<void>()
+
+    const disposeStarted = createDeferred<void>()
+
+    const dispose = vi.fn((): Promise<void> => {
+      disposeStarted.resolve()
+
+      return disposal.promise
+    })
+
+    const terminate = vi.fn(async (): Promise<void> => undefined)
+
+    const supervision = superviseSandboxRunnerExecution({
+      timeoutMs: 100,
+      execute: async () => 'completed',
+      waitForRendererGone: () => rendererGone.promise,
+      dispose,
+      terminate,
+      clock
+    })
+
+    await disposeStarted.promise
+
+    rendererGone.resolve({
+      reason: 'crashed',
+      exitCode: 9
+    })
+
+    await expect(supervision).resolves.toEqual({
+      status: 'renderer-gone',
+      details: {
+        reason: 'crashed',
+        exitCode: 9
+      }
+    })
+
+    expect(terminate).toHaveBeenCalledWith('renderer-gone')
+
+    disposal.resolve()
+  })
+
+  it('terminates after reusable cleanup failure', async () => {
+    const { clock } = createManualClock()
+
+    const cleanupError = new Error('Simulated cleanup failure.')
+
+    const terminate = vi.fn(async (): Promise<void> => undefined)
+
+    const outcome = await superviseSandboxRunnerExecution({
+      timeoutMs: 100,
+      execute: async () => 'completed',
+      waitForRendererGone: () => createNeverSettlingPromise(),
+      dispose: async () => {
+        throw cleanupError
+      },
+      terminate,
+      clock
+    })
+
+    expect(outcome).toEqual({
+      status: 'failed',
+      error: cleanupError
+    })
+
+    expect(terminate).toHaveBeenCalledWith('cleanup-failed')
+  })
 })
