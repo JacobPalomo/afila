@@ -121,4 +121,118 @@ describe('sandbox runner window cleanup', () => {
 
     expect(dispose).not.toHaveBeenCalled()
   })
+
+  it('waits for renderer release before disposing the session', async () => {
+    const callOrder: string[] = []
+
+    const isDestroyed = vi.fn<() => boolean>().mockReturnValueOnce(false).mockReturnValue(true)
+
+    const destroy = vi.fn(() => {
+      callOrder.push('destroy')
+    })
+
+    const runnerWindow = createRunnerWindow(isDestroyed, destroy)
+
+    const dispose = vi.fn(async (): Promise<void> => {
+      callOrder.push('dispose')
+    })
+
+    const invalidate = vi.fn(async (): Promise<void> => {
+      callOrder.push('invalidate')
+    })
+
+    const waitForProcessRelease = vi.fn(async (): Promise<void> => {
+      callOrder.push('release')
+    })
+
+    const errors = await cleanupSandboxRunnerWindow(
+      runnerWindow,
+      {
+        dispose,
+        invalidate
+      },
+      'reuse',
+      waitForProcessRelease
+    )
+
+    expect(errors).toEqual([])
+
+    expect(callOrder).toEqual(['destroy', 'release', 'dispose'])
+
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  it('invalidates the session when renderer release cannot be confirmed', async () => {
+    const releaseError = new Error('Simulated renderer release failure.')
+
+    const isDestroyed = vi.fn<() => boolean>().mockReturnValueOnce(false).mockReturnValue(true)
+
+    const destroy = vi.fn<() => void>()
+
+    const runnerWindow = createRunnerWindow(isDestroyed, destroy)
+
+    const { sessionHandle, dispose, invalidate } = createSessionHandle()
+
+    const errors = await cleanupSandboxRunnerWindow(
+      runnerWindow,
+      sessionHandle,
+      'reuse',
+      async () => {
+        throw releaseError
+      }
+    )
+
+    expect(errors).toEqual([releaseError])
+
+    expect(invalidate).toHaveBeenCalledTimes(1)
+
+    expect(dispose).not.toHaveBeenCalled()
+  })
+
+  it('escalates an in-flight reusable cleanup to invalidation', async () => {
+    const isDestroyed = vi.fn<() => boolean>().mockReturnValueOnce(false).mockReturnValue(true)
+
+    const destroy = vi.fn<() => void>()
+
+    const runnerWindow = createRunnerWindow(isDestroyed, destroy)
+
+    const { sessionHandle, dispose, invalidate } = createSessionHandle()
+
+    let cleanupMode: 'reuse' | 'invalidate' = 'reuse'
+
+    let confirmRelease: () => void = () => undefined
+
+    let confirmWaitStarted: () => void = () => undefined
+
+    const releaseConfirmation = new Promise<void>((resolve) => {
+      confirmRelease = resolve
+    })
+
+    const waitStarted = new Promise<void>((resolve) => {
+      confirmWaitStarted = resolve
+    })
+
+    const cleanup = cleanupSandboxRunnerWindow(
+      runnerWindow,
+      sessionHandle,
+      () => cleanupMode,
+      async (): Promise<void> => {
+        confirmWaitStarted()
+
+        await releaseConfirmation
+      }
+    )
+
+    await waitStarted
+
+    cleanupMode = 'invalidate'
+
+    confirmRelease()
+
+    await expect(cleanup).resolves.toEqual([])
+
+    expect(invalidate).toHaveBeenCalledTimes(1)
+
+    expect(dispose).not.toHaveBeenCalled()
+  })
 })

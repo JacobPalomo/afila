@@ -6,6 +6,10 @@ import { registerExecutionHandler } from './execution/register-execution-handler
 import { trustRendererWindow } from './security/trusted-renderer'
 import { pathToFileURL } from 'url'
 import { isAllowedExternalURL } from './security/external-url'
+import { parseSandboxRunnerExecutionDiagnosticScenario } from './execution/sandbox-runner-execution-diagnostic-policy'
+import { runSandboxRunnerExecutionDiagnostic } from './execution/sandbox-runner-execution-diagnostic'
+
+let sandboxExecutionDiagnosticActive = false
 
 function createWindow(): void {
   const developmentRendererURL = process.env['ELECTRON_RENDERER_URL']
@@ -60,33 +64,58 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+async function startApplication(): Promise<void> {
+  const diagnosticScenario = parseSandboxRunnerExecutionDiagnosticScenario(
+    process.env['AFILA_SANDBOX_EXECUTION_DIAGNOSTIC']
+  )
+
+  if (diagnosticScenario !== null) {
+    sandboxExecutionDiagnosticActive = true
+
+    if (app.isPackaged) {
+      throw new Error('Sandbox execution diagnostics are disabled in packaged applications.')
+    }
+
+    const report = await runSandboxRunnerExecutionDiagnostic(diagnosticScenario)
+
+    console.info('AFILA_SANDBOX_EXECUTION_DIAGNOSTIC', JSON.stringify(report))
+
+    app.exit(0)
+
+    return
+  }
+
   registerExecutionHandler()
 
-  // Set app user model id for windows
   electronApp.setAppUserModelId('com.jacobpalomo.afila')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
+  app.on('browser-window-created', (_event, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
   createWindow()
 
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
   })
-})
+}
+
+void app
+  .whenReady()
+  .then(startApplication)
+  .catch((error: unknown) => {
+    console.error('Failed to start Afila.', error)
+
+    app.exit(1)
+  })
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (!sandboxExecutionDiagnosticActive && process.platform !== 'darwin') {
     app.quit()
   }
 })
