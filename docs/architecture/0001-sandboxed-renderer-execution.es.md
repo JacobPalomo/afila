@@ -448,6 +448,36 @@ fallar un mensaje, el main debe:
 
 Un timeout dentro del realm del usuario no constituye un control de seguridad.
 
+#### Diagnósticos de terminación en desarrollo
+
+Afila incluye un punto de entrada de diagnóstico exclusivo de desarrollo para
+la frontera de terminación del sandbox runner. Acepta únicamente scripts
+internos fijos y está deshabilitado en aplicaciones empaquetadas.
+
+El 4 de agosto de 2026, el build preview de Electron en macOS produjo los
+siguientes resultados:
+
+- Un script síncrono fijo terminó normalmente en 48 ms.
+- Un bucle infinito fijo alcanzó el timeout externo de 250 ms y completó la
+  terminación forzada y limpieza en 296 ms.
+- Una terminación forzada del renderer produjo `render-process-gone` con razón
+  `killed` y código de salida `2`, completando la limpieza en 162 ms.
+- Cada escenario restauró exactamente los conjuntos baseline de IDs de
+  BrowserWindow y WebContents.
+- Cada escenario confirmó que BrowserWindow, WebContents y el proceso renderer
+  del sistema operativo dejaron de estar registrados.
+
+La Session reutilizable se libera únicamente después de que desaparezcan la
+ventana runner, sus WebContents y la identidad capturada del proceso renderer.
+Una falla al comprobar esta liberación invalida el lease de la Session en lugar
+de permitir su reutilización.
+
+Estos diagnósticos validan el protocolo de terminación y liberación de recursos
+para la configuración de desarrollo probada. No demuestran un comportamiento
+equivalente en builds empaquetados ni en todos los sistemas operativos
+soportados, no habilitan la ejecución de código escrito por el usuario y no
+demuestran contención dura de memoria.
+
 ### 9.8 Control de memoria
 
 El prototipo puede observar el proceso renderer mediante su PID del sistema

@@ -425,6 +425,34 @@ On completion, timeout, crash, invalid response or message failure, main must:
 
 A timeout inside the user realm is not a security control.
 
+#### Development termination diagnostics
+
+Afila includes a development-only diagnostic entry point for the sandbox
+runner termination boundary. It accepts only fixed internal scripts and is
+disabled in packaged applications.
+
+On August 4, 2026, the Electron preview build on macOS produced the following
+results:
+
+- A fixed synchronous script completed normally in 48 ms.
+- A fixed infinite loop reached the 250 ms external timeout and completed
+  forced termination and cleanup in 296 ms.
+- A forced renderer termination produced `render-process-gone` with reason
+  `killed` and exit code `2`, completing cleanup in 162 ms.
+- Every scenario restored the exact baseline BrowserWindow and WebContents ID
+  sets.
+- Every scenario confirmed that the runner BrowserWindow, WebContents and
+  renderer operating-system process were no longer registered.
+
+The reusable Session is released only after the runner window, WebContents and
+captured renderer process identity have disappeared. A failed release check
+invalidates the Session lease instead of allowing reuse.
+
+These diagnostics validate the termination and resource-release protocol for
+the tested development configuration. They do not establish equivalent
+behavior for packaged builds or every supported operating system, do not enable
+user-written source execution and do not demonstrate hard memory containment.
+
 ### 9.8 Memory control
 
 The prototype may monitor the renderer process using its operating-system PID

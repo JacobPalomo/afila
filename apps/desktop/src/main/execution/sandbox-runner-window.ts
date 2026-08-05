@@ -14,13 +14,20 @@ import { runSandboxRunnerWebRTCLockdown } from './sandbox-runner-webrtc-lockdown
 import { assertSandboxRunnerSessionStorageEmpty } from './sandbox-runner-session-storage'
 import { runSandboxRunnerStorageCapabilityProbe } from './sandbox-runner-storage-capability-probe'
 import { cleanupSandboxRunnerWindow } from './sandbox-runner-window-cleanup'
+import {
+  captureSandboxRunnerProcessReleaseTarget,
+  waitForCapturedSandboxRunnerProcessRelease
+} from './sandbox-runner-process-release'
 
 export interface SandboxRunnerWindowHandle {
   readonly window: BrowserWindow
   readonly session: SandboxRunnerSessionHandle
   readonly identity: SandboxRunnerIdentity
+
   assertReadyForExecution(): SandboxRunnerIdentity
+
   dispose(): Promise<void>
+  invalidate(): Promise<void>
 }
 
 function assertSandboxRunnerRequestAudit(sessionHandle: SandboxRunnerSessionHandle): void {
@@ -160,6 +167,10 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
 
   const establishedWindow = runnerWindow
   const establishedIdentity = initialIdentity
+  const processReleaseTarget = captureSandboxRunnerProcessReleaseTarget(
+    establishedWindow,
+    establishedIdentity
+  )
 
   const assertReadyForExecution = (): SandboxRunnerIdentity => {
     const identity = assertSandboxRunnerIdentity(
@@ -173,18 +184,25 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
     return identity
   }
 
-  let disposePromise: Promise<void> | null = null
+  let cleanupPromise: Promise<void> | null = null
 
-  const dispose = (): Promise<void> => {
-    if (disposePromise !== null) {
-      return disposePromise
+  let invalidationRequested = false
+
+  const cleanup = (mode: 'reuse' | 'invalidate'): Promise<void> => {
+    if (mode === 'invalidate') {
+      invalidationRequested = true
     }
 
-    disposePromise = (async () => {
+    if (cleanupPromise !== null) {
+      return cleanupPromise
+    }
+
+    cleanupPromise = (async () => {
       const cleanupErrors = await cleanupSandboxRunnerWindow(
         establishedWindow,
         sessionHandle,
-        'reuse'
+        () => (invalidationRequested ? 'invalidate' : 'reuse'),
+        () => waitForCapturedSandboxRunnerProcessRelease(processReleaseTarget)
       )
 
       if (cleanupErrors.length > 0) {
@@ -195,14 +213,19 @@ export async function createSandboxRunnerWindow(): Promise<SandboxRunnerWindowHa
       }
     })()
 
-    return disposePromise
+    return cleanupPromise
   }
+
+  const dispose = (): Promise<void> => cleanup('reuse')
+
+  const invalidate = (): Promise<void> => cleanup('invalidate')
 
   return {
     window: establishedWindow,
     session: sessionHandle,
     identity: establishedIdentity,
     assertReadyForExecution,
-    dispose
+    dispose,
+    invalidate
   }
 }
