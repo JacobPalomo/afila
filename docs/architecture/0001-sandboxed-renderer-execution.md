@@ -1,6 +1,6 @@
 # ADR-0001: Prototype execution in a dedicated sandboxed renderer
 
-**Status:** Accepted  
+**Status:** Accepted for prototype; Candidate A not approved for production on macOS<br>
 **Date:** 2026-07-31  
 **Decision type:** Security architecture  
 **Scope:** Compilation and local execution of user-written TypeScript solutions
@@ -467,6 +467,39 @@ Production execution remains disabled until one of these is demonstrated:
 - A superseding architecture using the restricted embedded helper.
 
 Failure to prove memory containment supersedes this ADR for production use.
+
+#### macOS hard-memory-boundary research outcome
+
+On August 5, 2026, two native probes were executed on macOS 26.5.2
+(`arm64`, Apple clang 21.0.0).
+
+The first probe installed `RLIMIT_AS` with 64 MiB of additional virtual-address
+headroom. A 16 MiB allocation succeeded and a new 96 MiB allocation failed with
+`ENOMEM`. This confirms that the kernel can reject new virtual allocations that
+exceed the installed address-space limit.
+
+The second probe reserved 192 MiB before installing the same 64 MiB headroom.
+After the limit was active, it made 128 MiB resident inside the pre-existing
+mapping. Resident memory therefore grew by 128 MiB even though the configured
+headroom was only 64 MiB. A separate new 96 MiB mapping was still rejected with
+`ENOMEM`.
+
+The result demonstrates that `RLIMIT_AS` constrains new virtual mappings but
+does not constrain resident-memory growth inside mappings that already exist.
+It is therefore not a hard resident-memory boundary for a Chromium renderer,
+which may reserve substantial virtual regions before untrusted execution
+begins.
+
+Candidate A is not approved for production execution on macOS. The existing
+renderer remains useful as a prototype for process isolation, capability
+denial, external timeout, termination and deterministic cleanup. User-written
+source remains disconnected.
+
+Candidate C must now be evaluated as the execution successor. This outcome does
+not select Afila's future desktop shell.
+
+The reproducible probes and observed results are stored in
+[`tools/memory-boundary/README.md`](../../tools/memory-boundary/README.md).
 
 ## 10. Prototype acceptance gates
 
