@@ -1,6 +1,6 @@
 # ADR-0001: Ejecución prototipo en un renderer dedicado con sandbox
 
-**Estado:** Aceptado  
+**Estado:** Aceptado para prototipo; Candidato A no aprobado para producción en macOS<br>
 **Fecha:** 2026-07-31  
 **Tipo de decisión:** Arquitectura de seguridad  
 **Alcance:** Compilación y ejecución local de soluciones TypeScript escritas por el usuario
@@ -494,6 +494,39 @@ La ejecución en producción permanece deshabilitada hasta demostrar una opción
 
 No demostrar la contención de memoria obliga a reemplazar este ADR para
 producción.
+
+#### Resultado de la investigación de frontera dura de memoria en macOS
+
+El 5 de agosto de 2026 se ejecutaron dos probes nativos en macOS 26.5.2
+(`arm64`, Apple clang 21.0.0).
+
+El primer probe instaló `RLIMIT_AS` con 64 MiB adicionales de espacio de
+direcciones virtuales. Una asignación de 16 MiB funcionó y una nueva asignación
+de 96 MiB falló con `ENOMEM`. Esto confirma que el kernel puede rechazar nuevas
+asignaciones virtuales que superen el límite instalado.
+
+El segundo probe reservó 192 MiB antes de instalar el mismo margen de 64 MiB.
+Después de activar el límite, hizo residentes 128 MiB dentro del mapping
+preexistente. La memoria residente creció por tanto 128 MiB aunque el margen
+configurado era solo de 64 MiB. Un nuevo mapping separado de 96 MiB sí fue
+rechazado con `ENOMEM`.
+
+El resultado demuestra que `RLIMIT_AS` restringe nuevos mappings virtuales, pero
+no restringe el crecimiento de memoria residente dentro de mappings que ya
+existen. Por tanto, no constituye una frontera dura de memoria residente para
+un renderer de Chromium, que puede reservar regiones virtuales considerables
+antes de iniciar la ejecución no confiable.
+
+El Candidato A no queda aprobado para ejecución en producción en macOS. El
+renderer existente sigue siendo útil como prototipo de aislamiento de procesos,
+denegación de capacidades, timeout externo, terminación y limpieza
+determinista. El código escrito por usuarios permanece desconectado.
+
+Ahora debe evaluarse el Candidato C como sucesor para la ejecución. Este
+resultado no selecciona todavía el futuro shell de escritorio de Afila.
+
+Los probes reproducibles y los resultados observados se encuentran en
+[`tools/memory-boundary/README.es.md`](../../tools/memory-boundary/README.es.md).
 
 ## 10. Criterios de aceptación del prototipo
 
